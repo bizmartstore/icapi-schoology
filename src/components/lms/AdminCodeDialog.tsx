@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { Shield } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
 
 const ADMIN_CODE = "ADMIN_08";
 
@@ -16,17 +18,35 @@ type Props = {
 
 const AdminCodeDialog = ({ open, onOpenChange }: Props) => {
   const navigate = useNavigate();
+  const { user, refreshProfile } = useAuth();
   const [code, setCode] = useState("");
+  const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (code === ADMIN_CODE) {
-      onOpenChange(false);
-      setCode("");
-      navigate("/admin");
-    } else {
+    if (code !== ADMIN_CODE) {
       toast.error("Invalid admin code");
       setCode("");
+      return;
+    }
+    if (!user) {
+      toast.error("You must be logged in");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { error } = await supabase.rpc("grant_admin_role", { _user_id: user.id });
+      if (error) throw error;
+      await refreshProfile();
+      onOpenChange(false);
+      setCode("");
+      toast.success("Admin access granted!");
+      navigate("/admin");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to grant admin access");
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -49,7 +69,9 @@ const AdminCodeDialog = ({ open, onOpenChange }: Props) => {
               autoFocus
             />
           </div>
-          <Button type="submit" className="w-full rounded-xl">Access Admin Dashboard</Button>
+          <Button type="submit" className="w-full rounded-xl" disabled={loading}>
+            {loading ? "Verifying..." : "Access Admin Dashboard"}
+          </Button>
         </form>
       </DialogContent>
     </Dialog>
