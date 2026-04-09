@@ -14,6 +14,120 @@ export type Database = {
   }
   public: {
     Tables: {
+      announcements: {
+        Row: {
+          created_at: string | null
+          from_name: string | null
+          full_content: string | null
+          id: string
+          is_active: boolean | null
+          is_new: boolean | null
+          preview_text: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          from_name?: string | null
+          full_content?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_new?: boolean | null
+          preview_text?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          from_name?: string | null
+          full_content?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_new?: boolean | null
+          preview_text?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      banners: {
+        Row: {
+          created_at: string | null
+          gradient: string | null
+          id: string
+          image_url: string | null
+          is_active: boolean | null
+          sort_order: number | null
+          subtitle: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          gradient?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          sort_order?: number | null
+          subtitle?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          gradient?: string | null
+          id?: string
+          image_url?: string | null
+          is_active?: boolean | null
+          sort_order?: number | null
+          subtitle?: string | null
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      lessons: {
+        Row: {
+          chapter: string | null
+          color: string | null
+          created_at: string | null
+          id: string
+          is_active: boolean | null
+          lesson_title: string
+          progress: number | null
+          school_level: Database["public"]["Enums"]["school_level"] | null
+          subject_name: string
+          time_left: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          chapter?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          lesson_title: string
+          progress?: number | null
+          school_level?: Database["public"]["Enums"]["school_level"] | null
+          subject_name: string
+          time_left?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          chapter?: string | null
+          color?: string | null
+          created_at?: string | null
+          id?: string
+          is_active?: boolean | null
+          lesson_title?: string
+          progress?: number | null
+          school_level?: Database["public"]["Enums"]["school_level"] | null
+          subject_name?: string
+          time_left?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"]
@@ -65,6 +179,90 @@ export type Database = {
           updated_at?: string
           user_id?: string
           user_type?: Database["public"]["Enums"]["user_type"]
+        }
+        Relationships: []
+      }
+      subjects: {
+        Row: {
+          color: string | null
+          created_at: string | null
+          grade_level: string | null
+          icon_name: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          progress: number | null
+          school_level: Database["public"]["Enums"]["school_level"]
+          sort_order: number | null
+          teacher_name: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          color?: string | null
+          created_at?: string | null
+          grade_level?: string | null
+          icon_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          progress?: number | null
+          school_level: Database["public"]["Enums"]["school_level"]
+          sort_order?: number | null
+          teacher_name?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          color?: string | null
+          created_at?: string | null
+          grade_level?: string | null
+          icon_name?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          progress?: number | null
+          school_level?: Database["public"]["Enums"]["school_level"]
+          sort_order?: number | null
+          teacher_name?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          created_at: string | null
+          due_date: string | null
+          id: string
+          is_active: boolean | null
+          is_urgent: boolean | null
+          school_level: Database["public"]["Enums"]["school_level"] | null
+          subject_name: string | null
+          task_type: string | null
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_urgent?: boolean | null
+          school_level?: Database["public"]["Enums"]["school_level"] | null
+          subject_name?: string | null
+          task_type?: string | null
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          due_date?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_urgent?: boolean | null
+          school_level?: Database["public"]["Enums"]["school_level"] | null
+          subject_name?: string | null
+          task_type?: string | null
+          title?: string
+          updated_at?: string | null
         }
         Relationships: []
       }
