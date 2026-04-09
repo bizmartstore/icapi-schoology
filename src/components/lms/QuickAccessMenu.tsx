@@ -1,18 +1,31 @@
 import { LayoutDashboard, BookOpen, Calendar, MessageCircle, BarChart3, Bell } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const menuItems = [
-  { icon: LayoutDashboard, label: "Dashboard", path: "/" },
-  { icon: BookOpen, label: "Subjects", path: "/subjects" },
-  { icon: Calendar, label: "Calendar", path: "/calendar" },
-  { icon: MessageCircle, label: "Messages", path: "/messages" },
-  { icon: BarChart3, label: "Grades", path: "/grades" },
-  { icon: Bell, label: "Alerts", path: "/notifications" },
+  { icon: LayoutDashboard, label: "Dashboard", path: "/", requiresAuth: false },
+  { icon: BookOpen, label: "Subjects", path: "/subjects", requiresAuth: false },
+  { icon: Calendar, label: "Calendar", path: "/calendar", requiresAuth: true },
+  { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: true },
+  { icon: BarChart3, label: "Grades", path: "/grades", requiresAuth: true },
+  { icon: Bell, label: "Alerts", path: "/notifications", requiresAuth: true },
 ];
 
 const QuickAccessMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, profile } = useAuth();
+  const isLoggedIn = !!user && profile?.approval_status === "approved";
+
+  const handleClick = (item: typeof menuItems[0]) => {
+    if (item.requiresAuth && !isLoggedIn) {
+      toast.info("Please login to access this feature");
+      navigate("/login");
+      return;
+    }
+    navigate(item.path);
+  };
 
   return (
     <div className="px-4 py-3">
@@ -22,7 +35,7 @@ const QuickAccessMenu = () => {
           return (
             <button
               key={item.label}
-              onClick={() => navigate(item.path)}
+              onClick={() => handleClick(item)}
               className={`flex flex-col items-center gap-1.5 min-w-[64px] transition-all duration-200 ${
                 isActive ? "scale-105" : "hover:scale-105"
               }`}
