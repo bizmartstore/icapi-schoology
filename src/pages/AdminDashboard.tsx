@@ -88,15 +88,15 @@ const AdminDashboard = () => {
     fetchAll();
   };
 
-  const handleDelete = async (table: string, id: string) => {
-    const { error } = await supabase.from(table).delete().eq("id", id);
+  const handleDelete = async (table: "banners" | "subjects" | "announcements" | "tasks" | "lessons", id: string) => {
+    const { error } = await (supabase.from(table) as any).delete().eq("id", id);
     if (error) { toast.error("Delete failed"); return; }
     toast.success("Deleted");
     fetchAll();
   };
 
-  const handleToggleActive = async (table: string, id: string, currentVal: boolean) => {
-    const { error } = await supabase.from(table).update({ is_active: !currentVal }).eq("id", id);
+  const handleToggleActive = async (table: "banners" | "subjects" | "announcements" | "tasks" | "lessons", id: string, currentVal: boolean) => {
+    const { error } = await (supabase.from(table) as any).update({ is_active: !currentVal }).eq("id", id);
     if (error) { toast.error("Update failed"); return; }
     fetchAll();
   };
@@ -383,14 +383,14 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
 
   const handleSave = async () => {
     setSaving(true);
-    const table = dialog.type;
+    const table = dialog.type as "banners" | "subjects" | "announcements" | "tasks" | "lessons";
     const { id, created_at, updated_at, ...data } = form;
 
     let error;
     if (isEdit) {
-      ({ error } = await supabase.from(table).update(data).eq("id", form.id));
+      ({ error } = await (supabase.from(table) as any).update(data).eq("id", form.id));
     } else {
-      ({ error } = await supabase.from(table).insert(data));
+      ({ error } = await (supabase.from(table) as any).insert(data));
     }
     setSaving(false);
     if (error) { toast.error(error.message); return; }
