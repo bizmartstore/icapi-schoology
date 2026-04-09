@@ -54,11 +54,16 @@ const App = () => (
       <BrowserRouter>
         <AuthProvider>
           <Routes>
+            {/* Homepage is public - anyone can view */}
+            <Route path="/" element={<Index />} />
+            <Route path="/subjects" element={<Index />} />
+            
+            {/* Auth pages */}
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
             <Route path="/signup/student" element={<PublicRoute><StudentSignupPage /></PublicRoute>} />
             <Route path="/signup/teacher" element={<PublicRoute><TeacherSignupPage /></PublicRoute>} />
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/subjects" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            
+            {/* Protected pages - require login */}
             <Route path="/subject/:id" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />

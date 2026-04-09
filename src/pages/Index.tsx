@@ -8,13 +8,14 @@ import TopPerforming from "@/components/lms/TopPerforming";
 import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, UserCheck } from "lucide-react";
+import { LogOut, UserCheck, LogIn } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
-  const { profile, roles, signOut } = useAuth();
+  const { profile, roles, signOut, user } = useAuth();
   const navigate = useNavigate();
   const isTeacher = roles.includes("teacher");
+  const isLoggedIn = !!user && profile?.approval_status === "approved";
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -32,23 +33,42 @@ const Index = () => {
         {/* Welcome banner */}
         <div className="px-4">
           <div className="bg-gradient-to-r from-primary to-primary/80 rounded-2xl p-5 card-shadow">
-            <p className="text-primary-foreground/70 text-xs font-medium">{greeting()},</p>
-            <h1 className="text-xl font-bold text-primary-foreground mb-1">
-              {profile ? `${profile.first_name} ${profile.last_name}` : "User"} 👋
-            </h1>
-            <p className="text-primary-foreground/70 text-sm capitalize">
-              {profile?.user_type === "teacher" ? "Teacher Dashboard" : "Student Dashboard"}
-            </p>
-            <div className="flex gap-2 mt-3">
-              {isTeacher && (
-                <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={() => navigate("/approvals")}>
-                  <UserCheck className="h-3 w-3 mr-1" /> Student Approvals
-                </Button>
-              )}
-              <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={signOut}>
-                <LogOut className="h-3 w-3 mr-1" /> Sign Out
-              </Button>
-            </div>
+            {isLoggedIn ? (
+              <>
+                <p className="text-primary-foreground/70 text-xs font-medium">{greeting()},</p>
+                <h1 className="text-xl font-bold text-primary-foreground mb-1">
+                  {profile ? `${profile.first_name} ${profile.last_name}` : "User"} 👋
+                </h1>
+                <p className="text-primary-foreground/70 text-sm capitalize">
+                  {profile?.user_type === "teacher" ? "Teacher Dashboard" : "Student Dashboard"}
+                </p>
+                <div className="flex gap-2 mt-3">
+                  {isTeacher && (
+                    <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={() => navigate("/approvals")}>
+                      <UserCheck className="h-3 w-3 mr-1" /> Student Approvals
+                    </Button>
+                  )}
+                  <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={signOut}>
+                    <LogOut className="h-3 w-3 mr-1" /> Sign Out
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h1 className="text-xl font-bold text-primary-foreground mb-1">Welcome to EduLearn 👋</h1>
+                <p className="text-primary-foreground/70 text-sm">
+                  Sign in to access your subjects, assignments, and grades.
+                </p>
+                <div className="flex gap-2 mt-3">
+                  <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={() => navigate("/login")}>
+                    <LogIn className="h-3 w-3 mr-1" /> Login
+                  </Button>
+                  <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={() => navigate("/signup/student")}>
+                    Sign Up
+                  </Button>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

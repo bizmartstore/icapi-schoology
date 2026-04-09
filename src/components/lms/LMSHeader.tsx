@@ -1,8 +1,19 @@
-import { Search, Bell, MessageSquare } from "lucide-react";
+import { Search, Bell, MessageSquare, LogIn } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const LMSHeader = () => {
+  const { user, profile } = useAuth();
+  const navigate = useNavigate();
+  const isLoggedIn = !!user && profile?.approval_status === "approved";
+
+  const initials = profile
+    ? `${profile.first_name.charAt(0)}${profile.last_name.charAt(0)}`
+    : "?";
+
   return (
     <header className="sticky top-0 z-50 bg-primary px-4 py-3 card-shadow">
       <div className="container flex items-center gap-3">
@@ -23,22 +34,28 @@ const LMSHeader = () => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors">
-            <MessageSquare className="h-5 w-5 text-primary-foreground" />
-            <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-accent border-2 border-primary" />
-          </button>
-          <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors">
-            <Bell className="h-5 w-5 text-primary-foreground" />
-            <span className="absolute -top-0.5 -right-0.5">
-              <Badge className="h-4 min-w-4 px-1 text-[10px] bg-accent border-0 text-accent-foreground">3</Badge>
-            </span>
-          </button>
-          <Avatar className="h-8 w-8 border-2 border-primary-foreground/30">
-            <AvatarImage src="" />
-            <AvatarFallback className="bg-accent text-accent-foreground text-xs font-semibold">JD</AvatarFallback>
-          </Avatar>
-        </div>
+        {isLoggedIn ? (
+          <div className="flex items-center gap-2">
+            <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/messages")}>
+              <MessageSquare className="h-5 w-5 text-primary-foreground" />
+              <span className="absolute top-1 right-1 h-2.5 w-2.5 rounded-full bg-accent border-2 border-primary" />
+            </button>
+            <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/notifications")}>
+              <Bell className="h-5 w-5 text-primary-foreground" />
+              <span className="absolute -top-0.5 -right-0.5">
+                <Badge className="h-4 min-w-4 px-1 text-[10px] bg-accent border-0 text-accent-foreground">3</Badge>
+              </span>
+            </button>
+            <Avatar className="h-8 w-8 border-2 border-primary-foreground/30">
+              <AvatarImage src="" />
+              <AvatarFallback className="bg-accent text-accent-foreground text-xs font-semibold">{initials}</AvatarFallback>
+            </Avatar>
+          </div>
+        ) : (
+          <Button size="sm" variant="secondary" className="rounded-xl text-xs" onClick={() => navigate("/login")}>
+            <LogIn className="h-4 w-4 mr-1" /> Login
+          </Button>
+        )}
       </div>
     </header>
   );

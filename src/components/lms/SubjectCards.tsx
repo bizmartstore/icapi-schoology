@@ -1,6 +1,8 @@
 import { useNavigate } from "react-router-dom";
 import { Calculator, BookText, FlaskConical, Languages, Globe2, Music, Wrench } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const subjects = [
   { id: "math", name: "Mathematics", teacher: "Mrs. Santos", icon: Calculator, color: "bg-subject-math", progress: 72 },
@@ -14,6 +16,17 @@ const subjects = [
 
 const SubjectCards = () => {
   const navigate = useNavigate();
+  const { user, profile } = useAuth();
+  const isLoggedIn = !!user && profile?.approval_status === "approved";
+
+  const handleClick = (subjectId: string) => {
+    if (!isLoggedIn) {
+      toast.info("Please login to view subject details");
+      navigate("/login");
+      return;
+    }
+    navigate(`/subject/${subjectId}`);
+  };
 
   return (
     <section className="px-4">
@@ -25,7 +38,7 @@ const SubjectCards = () => {
         {subjects.map((subject, i) => (
           <button
             key={subject.id}
-            onClick={() => navigate(`/subject/${subject.id}`)}
+            onClick={() => handleClick(subject.id)}
             className="min-w-[160px] bg-card rounded-2xl p-4 card-shadow hover:card-shadow-hover transition-all duration-200 hover:-translate-y-0.5 text-left animate-slide-in-right"
             style={{ animationDelay: `${i * 60}ms` }}
           >
