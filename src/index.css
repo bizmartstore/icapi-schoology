@@ -79,7 +79,13 @@
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
-}
+  }
+
+  /* Hide Lovable badge */
+  a[href*="lovable.dev"][style*="fixed"],
+  a[href*="lovable.dev"][style*="position"] {
+    display: none !important;
+  }
 
 @layer utilities {
   .card-shadow {
