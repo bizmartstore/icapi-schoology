@@ -6,7 +6,7 @@
 
 @layer base {
   :root {
-    --background: 210 20% 98%;
+    --background: 220 20% 97%;
     --foreground: 220 30% 12%;
 
     --card: 0 0% 100%;
@@ -72,7 +72,6 @@
     font-family: 'Plus Jakarta Sans', sans-serif;
   }
 
-  /* Custom scrollbar for horizontal sections */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -84,9 +83,19 @@
 
 @layer utilities {
   .card-shadow {
-    box-shadow: 0 2px 12px -2px hsl(220 30% 12% / 0.08);
+    box-shadow:
+      0 1px 3px hsl(220 30% 12% / 0.04),
+      0 4px 16px -2px hsl(220 30% 12% / 0.08);
   }
   .card-shadow-hover {
-    box-shadow: 0 8px 24px -4px hsl(220 30% 12% / 0.12);
+    box-shadow:
+      0 4px 12px hsl(220 30% 12% / 0.06),
+      0 12px 32px -4px hsl(220 30% 12% / 0.14);
+  }
+
+  .glass {
+    background: hsl(0 0% 100% / 0.7);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 }
