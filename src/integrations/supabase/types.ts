@@ -95,6 +95,7 @@ export type Database = {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["approval_status"]
       }
+      grant_admin_role: { Args: { _user_id: string }; Returns: boolean }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
