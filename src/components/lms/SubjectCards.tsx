@@ -5,6 +5,24 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
+import subjectMath from "@/assets/subject-math.jpg";
+import subjectEnglish from "@/assets/subject-english.jpg";
+import subjectScience from "@/assets/subject-science.jpg";
+import subjectFilipino from "@/assets/subject-filipino.jpg";
+import subjectAp from "@/assets/subject-ap.jpg";
+import subjectMapeh from "@/assets/subject-mapeh.jpg";
+import subjectTle from "@/assets/subject-tle.jpg";
+
+const subjectImages: Record<string, string> = {
+  "bg-subject-math": subjectMath,
+  "bg-subject-english": subjectEnglish,
+  "bg-subject-science": subjectScience,
+  "bg-subject-filipino": subjectFilipino,
+  "bg-subject-ap": subjectAp,
+  "bg-subject-mapeh": subjectMapeh,
+  "bg-subject-tle": subjectTle,
+};
+
 const iconMap: Record<string, any> = {
   Calculator, BookText, FlaskConical, Languages, Globe2, Music, Wrench, BookOpen, Lightbulb, Palette,
 };
@@ -16,16 +34,6 @@ type Subject = {
   icon_name: string | null;
   color: string | null;
   progress: number | null;
-};
-
-const colorToBg: Record<string, string> = {
-  "bg-subject-math": "bg-subject-math/10 text-subject-math",
-  "bg-subject-english": "bg-subject-english/10 text-subject-english",
-  "bg-subject-science": "bg-subject-science/10 text-subject-science",
-  "bg-subject-filipino": "bg-subject-filipino/10 text-subject-filipino",
-  "bg-subject-ap": "bg-subject-ap/10 text-subject-ap",
-  "bg-subject-mapeh": "bg-subject-mapeh/10 text-subject-mapeh",
-  "bg-subject-tle": "bg-subject-tle/10 text-subject-tle",
 };
 
 const SubjectCards = () => {
@@ -53,29 +61,38 @@ const SubjectCards = () => {
 
   return (
     <div className="px-4 pb-3">
-      <div className="grid grid-cols-3 gap-2">
-        {subjects.slice(0, 6).map((subject, i) => {
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+        {subjects.map((subject) => {
           const Icon = iconMap[subject.icon_name || "BookOpen"] || BookOpen;
           const color = subject.color || "bg-subject-math";
-          const styles = colorToBg[color] || "bg-primary/10 text-primary";
+          const img = subjectImages[color] || subjectMath;
           return (
             <button
               key={subject.id}
               onClick={() => handleClick(subject.id)}
-              className="bg-background rounded-lg p-2.5 text-center transition-all duration-150 active:scale-95 hover:shadow-sm border border-border/50"
+              className="min-w-[140px] max-w-[140px] bg-card rounded-xl overflow-hidden transition-all duration-200 active:scale-95 hover:shadow-md border border-border/50 card-shadow flex-shrink-0"
             >
-              <div className={`h-10 w-10 rounded-lg ${styles} flex items-center justify-center mx-auto mb-1.5`}>
-                <Icon className="h-5 w-5" />
-              </div>
-              <h3 className="text-[11px] font-bold text-foreground leading-tight line-clamp-1">{subject.name}</h3>
-              <p className="text-[8px] text-muted-foreground mt-0.5 line-clamp-1">{subject.teacher_name}</p>
-              {(subject.progress || 0) > 0 && (
-                <div className="mt-1.5">
-                  <div className="w-full bg-muted rounded-full h-1 overflow-hidden">
-                    <div className={`${color} h-1 rounded-full`} style={{ width: `${subject.progress}%` }} />
+              <div className="relative h-[90px] overflow-hidden">
+                <img src={img} alt={subject.name} className="w-full h-full object-cover" loading="lazy" width={140} height={90} />
+                <div className="absolute inset-0 bg-gradient-to-t from-foreground/40 to-transparent" />
+                <div className="absolute bottom-2 left-2">
+                  <div className="h-7 w-7 rounded-lg bg-card/90 backdrop-blur-sm flex items-center justify-center">
+                    <Icon className="h-4 w-4 text-primary" />
                   </div>
                 </div>
-              )}
+              </div>
+              <div className="p-2.5">
+                <h3 className="text-[12px] font-bold text-foreground leading-tight line-clamp-1">{subject.name}</h3>
+                <p className="text-[9px] text-muted-foreground mt-0.5 line-clamp-1">{subject.teacher_name}</p>
+                {(subject.progress || 0) > 0 && (
+                  <div className="mt-2 flex items-center gap-1.5">
+                    <div className="flex-1 bg-muted rounded-full h-1.5 overflow-hidden">
+                      <div className="bg-primary h-1.5 rounded-full transition-all" style={{ width: `${subject.progress}%` }} />
+                    </div>
+                    <span className="text-[8px] font-bold text-muted-foreground">{subject.progress}%</span>
+                  </div>
+                )}
+              </div>
             </button>
           );
         })}
