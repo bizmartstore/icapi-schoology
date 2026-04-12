@@ -6,10 +6,10 @@ const LMSFooter = () => {
 
   return (
     <>
-      <footer className="py-6 text-center">
+      <footer className="py-6 text-center bg-card mt-2 border-t border-border">
         <button
           onClick={() => setShowAdminDialog(true)}
-          className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
         >
           EduLearn LMS © 2026
         </button>
