@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Calculator, BookText, FlaskConical, Languages, Globe2, Music, Wrench, BookOpen, Lightbulb, Palette, ArrowRight } from "lucide-react";
+import { Calculator, BookText, FlaskConical, Languages, Globe2, Music, Wrench, BookOpen, Lightbulb, Palette } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -16,6 +16,16 @@ type Subject = {
   icon_name: string | null;
   color: string | null;
   progress: number | null;
+};
+
+const colorToBg: Record<string, string> = {
+  "bg-subject-math": "bg-subject-math/10 text-subject-math",
+  "bg-subject-english": "bg-subject-english/10 text-subject-english",
+  "bg-subject-science": "bg-subject-science/10 text-subject-science",
+  "bg-subject-filipino": "bg-subject-filipino/10 text-subject-filipino",
+  "bg-subject-ap": "bg-subject-ap/10 text-subject-ap",
+  "bg-subject-mapeh": "bg-subject-mapeh/10 text-subject-mapeh",
+  "bg-subject-tle": "bg-subject-tle/10 text-subject-tle",
 };
 
 const SubjectCards = () => {
@@ -39,62 +49,42 @@ const SubjectCards = () => {
     navigate(`/subject/${subjectId}`);
   };
 
-  const textColorMap: Record<string, string> = {
-    "bg-subject-math": "text-subject-math",
-    "bg-subject-english": "text-subject-english",
-    "bg-subject-science": "text-subject-science",
-    "bg-subject-filipino": "text-subject-filipino",
-    "bg-subject-ap": "text-subject-ap",
-    "bg-subject-mapeh": "text-subject-mapeh",
-    "bg-subject-tle": "text-subject-tle",
-  };
-
   if (subjects.length === 0) return null;
 
   return (
-    <div className="px-4">
-      <div className="flex items-center justify-between mb-3">
-        <div>
-          <h3 className="text-[13px] font-bold text-foreground">My Subjects</h3>
-          <p className="text-[10px] text-muted-foreground">Tap a subject to view lessons</p>
-        </div>
-        <button className="flex items-center gap-1 text-[11px] font-semibold text-primary hover:text-primary/80 transition-colors" onClick={() => navigate("/subjects")}>
-          See All <ArrowRight className="h-3 w-3" />
-        </button>
-      </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-        {subjects.map((subject, i) => {
+    <div className="px-4 pb-3">
+      <div className="grid grid-cols-3 gap-2">
+        {subjects.slice(0, 6).map((subject, i) => {
           const Icon = iconMap[subject.icon_name || "BookOpen"] || BookOpen;
           const color = subject.color || "bg-subject-math";
-          const textColor = textColorMap[color] || "text-primary";
+          const styles = colorToBg[color] || "bg-primary/10 text-primary";
           return (
             <button
               key={subject.id}
               onClick={() => handleClick(subject.id)}
-              className="min-w-[140px] bg-card rounded-2xl overflow-hidden card-shadow hover:card-shadow-hover transition-all duration-300 hover:-translate-y-1 text-left animate-slide-in-right group"
-              style={{ animationDelay: `${i * 60}ms` }}
+              className="bg-background rounded-lg p-2.5 text-center transition-all duration-150 active:scale-95 hover:shadow-sm border border-border/50"
             >
-              <div className={`${color} h-1.5 w-full`} />
-              <div className="p-3 pt-2.5">
-                <div className={`h-9 w-9 rounded-xl ${color}/15 flex items-center justify-center mb-2 group-hover:scale-110 transition-transform duration-300`}>
-                  <Icon className={`h-4.5 w-4.5 ${textColor}`} />
-                </div>
-                <h3 className="text-[12px] font-bold text-foreground leading-tight mb-0.5 line-clamp-1">{subject.name}</h3>
-                <p className="text-[9px] text-muted-foreground mb-2.5 line-clamp-1">{subject.teacher_name}</p>
-                <div className="space-y-1">
-                  <div className="flex justify-between text-[9px]">
-                    <span className="text-muted-foreground">Progress</span>
-                    <span className="font-bold text-foreground">{subject.progress || 0}%</span>
-                  </div>
-                  <div className="w-full bg-muted rounded-full h-1.5 overflow-hidden">
-                    <div className={`${color} h-1.5 rounded-full transition-all duration-700 ease-out`} style={{ width: `${subject.progress || 0}%` }} />
-                  </div>
-                </div>
+              <div className={`h-10 w-10 rounded-lg ${styles} flex items-center justify-center mx-auto mb-1.5`}>
+                <Icon className="h-5 w-5" />
               </div>
+              <h3 className="text-[11px] font-bold text-foreground leading-tight line-clamp-1">{subject.name}</h3>
+              <p className="text-[8px] text-muted-foreground mt-0.5 line-clamp-1">{subject.teacher_name}</p>
+              {(subject.progress || 0) > 0 && (
+                <div className="mt-1.5">
+                  <div className="w-full bg-muted rounded-full h-1 overflow-hidden">
+                    <div className={`${color} h-1 rounded-full`} style={{ width: `${subject.progress}%` }} />
+                  </div>
+                </div>
+              )}
             </button>
           );
         })}
       </div>
+      {subjects.length > 6 && (
+        <button onClick={() => navigate("/subjects")} className="w-full mt-2 py-2 text-[11px] font-semibold text-primary bg-primary/5 rounded-lg hover:bg-primary/10 transition-colors">
+          View All {subjects.length} Subjects &gt;
+        </button>
+      )}
     </div>
   );
 };

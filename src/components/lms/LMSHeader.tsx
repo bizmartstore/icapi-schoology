@@ -1,4 +1,4 @@
-import { Search, Bell, MessageSquare, LogIn, GraduationCap } from "lucide-react";
+import { Search, Bell, MessageSquare, LogIn, GraduationCap, ShoppingBag } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,50 +15,44 @@ const LMSHeader = () => {
     : "?";
 
   return (
-    <header className="sticky top-0 z-50 bg-gradient-to-r from-primary via-primary to-primary/90 px-4 py-3 shadow-lg">
-      <div className="container flex items-center gap-3">
-        <div className="flex items-center gap-2">
-          <div className="h-9 w-9 rounded-xl bg-accent flex items-center justify-center shadow-md">
-            <GraduationCap className="h-5 w-5 text-accent-foreground" />
-          </div>
-          <div className="hidden sm:block">
-            <span className="text-lg font-extrabold text-primary-foreground tracking-tight">EduLearn</span>
-            <p className="text-[9px] text-primary-foreground/50 font-medium -mt-0.5">Learning Management</p>
-          </div>
+    <header className="sticky top-0 z-50 shopee-gradient px-4 pt-3 pb-2.5 shadow-md">
+      <div className="flex items-center gap-2.5 mb-2.5">
+        <div className="flex items-center gap-1.5">
+          <GraduationCap className="h-6 w-6 text-primary-foreground" />
+          <span className="text-base font-extrabold text-primary-foreground tracking-tight">EduLearn</span>
         </div>
-
-        <div className="flex-1 mx-2">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-primary-foreground/40" />
-            <input
-              placeholder="Search subjects, lessons..."
-              className="w-full rounded-xl bg-primary-foreground/10 backdrop-blur-md border border-primary-foreground/15 px-4 pl-10 py-2 text-sm text-primary-foreground placeholder:text-primary-foreground/40 focus:outline-none focus:ring-2 focus:ring-accent/50 focus:bg-primary-foreground/15 transition-all"
-            />
-          </div>
-        </div>
-
+        <div className="flex-1" />
         {isLoggedIn ? (
-          <div className="flex items-center gap-1.5">
-            <button className="relative p-2 rounded-xl hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/messages")}>
+          <div className="flex items-center gap-0.5">
+            <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/messages")}>
               <MessageSquare className="h-5 w-5 text-primary-foreground" />
-              <span className="absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-accent" />
+              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary-foreground border border-primary" />
             </button>
-            <button className="relative p-2 rounded-xl hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/notifications")}>
+            <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/notifications")}>
               <Bell className="h-5 w-5 text-primary-foreground" />
               <span className="absolute top-0.5 right-0.5">
-                <Badge className="h-4 min-w-4 px-1 text-[9px] bg-accent border-0 text-accent-foreground font-bold">3</Badge>
+                <Badge className="h-4 min-w-4 px-1 text-[8px] bg-primary-foreground text-primary border-0 font-extrabold">3</Badge>
               </span>
             </button>
-            <Avatar className="h-8 w-8 border-2 border-accent/50 ring-2 ring-primary-foreground/10 cursor-pointer">
+            <Avatar className="h-7 w-7 border-2 border-primary-foreground/30 ml-1 cursor-pointer">
               <AvatarImage src="" />
-              <AvatarFallback className="bg-accent text-accent-foreground text-xs font-bold">{initials}</AvatarFallback>
+              <AvatarFallback className="bg-primary-foreground text-primary text-[10px] font-bold">{initials}</AvatarFallback>
             </Avatar>
           </div>
         ) : (
-          <Button size="sm" className="rounded-xl text-xs bg-accent hover:bg-accent/90 text-accent-foreground font-bold shadow-md" onClick={() => navigate("/login")}>
-            <LogIn className="h-4 w-4 mr-1" /> Login
+          <Button size="sm" className="rounded-full text-[11px] h-7 bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-bold px-3 shadow-none" onClick={() => navigate("/login")}>
+            <LogIn className="h-3.5 w-3.5 mr-1" /> Login
           </Button>
         )}
+      </div>
+
+      {/* Search bar */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <input
+          placeholder="Search subjects, lessons..."
+          className="w-full rounded-md bg-primary-foreground border-0 px-4 pl-9 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
+        />
       </div>
     </header>
   );
