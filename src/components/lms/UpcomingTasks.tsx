@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, AlertTriangle } from "lucide-react";
+import { FileText, Clock, AlertTriangle, ChevronRight } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -24,47 +24,51 @@ const UpcomingTasks = () => {
   if (tasks.length === 0) return null;
 
   return (
-    <section className="px-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="h-6 w-6 rounded-lg bg-destructive/10 flex items-center justify-center">
-            <FileText className="h-3.5 w-3.5 text-destructive" />
-          </div>
-          <h2 className="text-base font-bold text-foreground">Upcoming Tasks</h2>
-        </div>
-        <Badge variant="destructive" className="text-[10px] font-bold px-2.5 rounded-full">{tasks.length} pending</Badge>
-      </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-        {tasks.map((task, i) => (
-          <div
-            key={task.id}
-            className="min-w-[210px] bg-card rounded-2xl overflow-hidden card-shadow hover:card-shadow-hover transition-all duration-300 hover:-translate-y-1 animate-fade-in cursor-pointer"
-            style={{ animationDelay: `${i * 60}ms` }}
-          >
-            <div className={`h-1.5 bg-subject-ap ${task.is_urgent ? "animate-pulse bg-destructive" : ""}`} />
-            <div className="p-3.5">
-              <div className="flex items-start justify-between mb-2">
-                <Badge variant={task.task_type === "Quiz" ? "default" : "secondary"} className="text-[9px] font-bold px-2 rounded-full">
-                  {task.task_type}
-                </Badge>
-                {task.is_urgent && (
-                  <div className="flex items-center gap-1 text-destructive">
-                    <AlertTriangle className="h-3.5 w-3.5" />
-                    <span className="text-[9px] font-bold">URGENT</span>
-                  </div>
-                )}
-              </div>
-              <h3 className="text-[13px] font-bold text-foreground mb-1 leading-tight">{task.title}</h3>
-              <p className="text-[10px] text-muted-foreground mb-3 font-medium">{task.subject_name}</p>
-              <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground bg-muted/50 rounded-lg px-2.5 py-1.5">
-                <Clock className="h-3 w-3" />
-                <span className="font-semibold">{task.due_date}</span>
-              </div>
+    <div className="px-4">
+      <div className="bg-card rounded-2xl card-shadow overflow-hidden">
+        <div className="flex items-center justify-between p-4 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-destructive/10 flex items-center justify-center">
+              <FileText className="h-3.5 w-3.5 text-destructive" />
             </div>
+            <h3 className="text-[13px] font-bold text-foreground">Upcoming Tasks</h3>
           </div>
-        ))}
+          <Badge variant="destructive" className="text-[9px] font-bold px-2 rounded-full">{tasks.length} pending</Badge>
+        </div>
+        <div className="px-4 pb-4 space-y-2">
+          {tasks.map((task, i) => (
+            <div
+              key={task.id}
+              className={`flex items-center gap-3 p-3 rounded-xl transition-all duration-200 hover:bg-muted/50 cursor-pointer animate-fade-in ${
+                task.is_urgent ? "bg-destructive/5 ring-1 ring-destructive/15" : "bg-muted/30"
+              }`}
+              style={{ animationDelay: `${i * 60}ms` }}
+            >
+              <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                task.is_urgent ? "bg-destructive/15" : "bg-subject-ap/15"
+              }`}>
+                <FileText className={`h-4 w-4 ${task.is_urgent ? "text-destructive" : "text-subject-ap"}`} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <h4 className="text-[12px] font-bold text-foreground truncate">{task.title}</h4>
+                  {task.is_urgent && <AlertTriangle className="h-3 w-3 text-destructive flex-shrink-0" />}
+                </div>
+                <div className="flex items-center gap-2 text-[9px] text-muted-foreground">
+                  <span className="font-medium">{task.subject_name}</span>
+                  <span>•</span>
+                  <span className="flex items-center gap-0.5"><Clock className="h-2.5 w-2.5" />{task.due_date}</span>
+                </div>
+              </div>
+              <Badge variant={task.task_type === "Quiz" ? "default" : "secondary"} className="text-[8px] font-bold px-1.5 rounded-full flex-shrink-0">
+                {task.task_type}
+              </Badge>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+            </div>
+          ))}
+        </div>
       </div>
-    </section>
+    </div>
   );
 };
 
