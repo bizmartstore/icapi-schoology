@@ -8,46 +8,47 @@ const topSubjects = [
 ];
 
 const rankIcons = [
-  <Trophy className="h-5 w-5 text-accent" />,
-  <Medal className="h-5 w-5 text-muted-foreground" />,
-  <Medal className="h-5 w-5 text-subject-mapeh" />,
-  <Star className="h-4 w-4 text-muted-foreground" />,
+  <Trophy className="h-4 w-4 text-accent" />,
+  <Medal className="h-4 w-4 text-muted-foreground" />,
+  <Medal className="h-4 w-4 text-subject-mapeh" />,
+  <Star className="h-3.5 w-3.5 text-muted-foreground" />,
 ];
 
 const TopPerforming = () => {
   return (
-    <section className="px-4">
-      <div className="flex items-center gap-2 mb-3">
-        <div className="h-6 w-6 rounded-lg bg-accent/10 flex items-center justify-center">
-          <Trophy className="h-3.5 w-3.5 text-accent" />
+    <div className="px-4">
+      <div className="bg-card rounded-2xl card-shadow p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <div className="h-6 w-6 rounded-lg bg-accent/10 flex items-center justify-center">
+            <Trophy className="h-3.5 w-3.5 text-accent" />
+          </div>
+          <h3 className="text-[13px] font-bold text-foreground">Top Performing Subjects</h3>
         </div>
-        <h2 className="text-base font-bold text-foreground">Top Performing</h2>
-      </div>
-      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-2">
-        {topSubjects.map((subject, i) => (
-          <div
-            key={i}
-            className={`min-w-[130px] bg-card rounded-2xl overflow-hidden card-shadow hover:card-shadow-hover transition-all duration-300 hover:-translate-y-1 animate-scale-in ${
-              i === 0 ? "ring-2 ring-accent/30" : ""
-            }`}
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
-            {i === 0 && <div className="bg-gradient-to-r from-accent to-accent/70 h-1.5" />}
-            <div className="p-3.5 text-center">
-              <div className="mb-2">{rankIcons[i]}</div>
-              <div className={`h-14 w-14 rounded-full ${subject.color} flex items-center justify-center mx-auto mb-2 ring-4 ring-background shadow-lg`}>
-                <span className="text-base font-extrabold text-primary-foreground">{subject.grade}</span>
+        <div className="space-y-2.5">
+          {topSubjects.map((subject, i) => (
+            <div
+              key={i}
+              className={`flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 hover:bg-muted/50 ${
+                i === 0 ? "bg-accent/5 ring-1 ring-accent/20" : ""
+              }`}
+            >
+              <div className="flex-shrink-0 w-6 text-center">{rankIcons[i]}</div>
+              <div className={`h-10 w-10 rounded-xl ${subject.color} flex items-center justify-center flex-shrink-0 shadow-sm`}>
+                <span className="text-xs font-extrabold text-primary-foreground">{subject.grade}</span>
               </div>
-              <h3 className="text-[13px] font-bold text-foreground mb-1">{subject.name}</h3>
-              <div className="inline-flex items-center gap-0.5 bg-success/10 text-success text-[10px] font-bold px-2 py-0.5 rounded-full">
+              <div className="flex-1 min-w-0">
+                <h4 className="text-[12px] font-bold text-foreground">{subject.name}</h4>
+                <p className="text-[9px] text-muted-foreground">#{subject.rank} in class</p>
+              </div>
+              <div className="flex items-center gap-0.5 bg-success/10 text-success text-[10px] font-bold px-2 py-0.5 rounded-full flex-shrink-0">
                 <TrendingUp className="h-3 w-3" />
                 <span>{subject.trend}%</span>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
-    </section>
+    </div>
   );
 };
 

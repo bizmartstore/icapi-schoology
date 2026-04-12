@@ -34,39 +34,40 @@ const Announcements = () => {
   };
 
   return (
-    <section className="px-4">
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2">
-          <div className="h-6 w-6 rounded-lg bg-info/10 flex items-center justify-center">
-            <Megaphone className="h-3.5 w-3.5 text-info" />
+    <div className="px-4">
+      <div className="bg-card rounded-2xl card-shadow overflow-hidden">
+        <div className="flex items-center justify-between p-4 pb-2">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-info/10 flex items-center justify-center">
+              <Megaphone className="h-3.5 w-3.5 text-info" />
+            </div>
+            <h3 className="text-[13px] font-bold text-foreground">Announcements</h3>
           </div>
-          <h2 className="text-base font-bold text-foreground">Announcements</h2>
+          <button className="text-[11px] font-semibold text-primary">View All</button>
         </div>
-        <button className="text-xs font-semibold text-primary px-3 py-1 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors">View All</button>
-      </div>
-      <div className="space-y-2.5">
-        {announcements.map((item, i) => (
-          <button
-            key={item.id}
-            className="w-full bg-card rounded-2xl p-4 card-shadow hover:card-shadow-hover transition-all duration-300 hover:-translate-y-0.5 text-left flex gap-3 items-start animate-fade-in group"
-            style={{ animationDelay: `${i * 80}ms` }}
-          >
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-info/20 to-info/5 flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-300">
-              <Megaphone className="h-5 w-5 text-info" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 mb-0.5">
-                <h3 className="text-[13px] font-bold text-foreground truncate">{item.title}</h3>
-                {item.is_new && <Badge className="text-[8px] font-bold px-1.5 py-0 rounded-full bg-destructive text-destructive-foreground border-0 shrink-0">NEW</Badge>}
+        <div className="px-4 pb-4 space-y-2">
+          {announcements.map((item, i) => (
+            <button
+              key={item.id}
+              className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-muted/50 transition-all duration-200 text-left animate-fade-in"
+              style={{ animationDelay: `${i * 80}ms` }}
+            >
+              <div className="h-10 w-10 rounded-xl bg-info/10 flex items-center justify-center flex-shrink-0">
+                <Megaphone className="h-4 w-4 text-info" />
               </div>
-              <p className="text-[10px] text-muted-foreground font-semibold mb-1">{item.from_name} • {timeAgo(item.created_at)}</p>
-              <p className="text-[11px] text-muted-foreground line-clamp-1">{item.preview_text}</p>
-            </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/50 flex-shrink-0 mt-1 group-hover:text-primary group-hover:translate-x-0.5 transition-all" />
-          </button>
-        ))}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5 mb-0.5">
+                  <h4 className="text-[12px] font-bold text-foreground truncate">{item.title}</h4>
+                  {item.is_new && <Badge className="text-[7px] font-bold px-1 py-0 rounded-full bg-destructive text-destructive-foreground border-0 shrink-0">NEW</Badge>}
+                </div>
+                <p className="text-[9px] text-muted-foreground font-medium">{item.from_name} • {timeAgo(item.created_at)}</p>
+              </div>
+              <ChevronRight className="h-3.5 w-3.5 text-muted-foreground/40 flex-shrink-0" />
+            </button>
+          ))}
+        </div>
       </div>
-    </section>
+    </div>
   );
 };
 
