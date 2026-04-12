@@ -40,7 +40,7 @@ const QuickAccessMenu = () => {
     const el = scrollRef.current;
     if (!el) return;
     let animId: number;
-    let speed = 0.5;
+    let speed = 0.15;
 
     const step = () => {
       if (!paused && el) {

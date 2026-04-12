@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, AlertTriangle, ClipboardCheck, PenLine } from "lucide-react";
+import { FileText, Clock, AlertTriangle, ClipboardCheck, PenLine, Flame } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -30,30 +30,41 @@ const UpcomingTasks = () => {
 
   return (
     <div className="px-4 pb-3">
-      <div className="grid grid-cols-2 gap-2.5">
+      <div className="space-y-3">
         {tasks.map((task) => (
           <div
             key={task.id}
-            className={`rounded-xl border overflow-hidden transition-all cursor-pointer active:scale-[0.97] card-shadow hover:shadow-md ${
-              task.is_urgent ? "bg-destructive/5 border-destructive/20" : "bg-card border-border/50"
+            className={`rounded-2xl overflow-hidden transition-all cursor-pointer active:scale-[0.98] hover:shadow-lg ${
+              task.is_urgent
+                ? "bg-gradient-to-r from-destructive/10 via-card to-card border-l-4 border-destructive shadow-md shadow-destructive/10"
+                : "bg-card border border-border/60 card-shadow"
             }`}
           >
-            <div className={`p-3 flex items-center justify-between ${task.is_urgent ? "bg-destructive/10" : "bg-muted/50"}`}>
-              <div className={`h-10 w-10 rounded-xl flex items-center justify-center ${task.is_urgent ? "bg-destructive/20 text-destructive" : "bg-primary/10 text-primary"}`}>
+            <div className="flex items-center gap-3 p-3.5">
+              <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                task.is_urgent
+                  ? "bg-gradient-to-br from-destructive to-destructive/70 text-primary-foreground"
+                  : "bg-gradient-to-br from-primary/15 to-primary/5 text-primary"
+              }`}>
                 {typeIcon[task.task_type || ""] || <FileText className="h-5 w-5" />}
               </div>
-              {task.is_urgent && <AlertTriangle className="h-4 w-4 text-destructive animate-pulse" />}
-            </div>
-            <div className="p-2.5">
-              <h4 className="text-[11px] font-bold text-foreground leading-tight line-clamp-2">{task.title}</h4>
-              <p className="text-[9px] text-muted-foreground mt-1">{task.subject_name}</p>
-              <div className="flex items-center justify-between mt-2">
-                <span className="text-[8px] text-muted-foreground flex items-center gap-0.5">
-                  <Clock className="h-2.5 w-2.5" />{task.due_date}
-                </span>
-                <Badge variant={task.task_type === "Quiz" ? "default" : "secondary"} className="text-[7px] font-bold px-1.5 py-0 rounded-sm">
-                  {task.task_type}
-                </Badge>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <h4 className="text-[13px] font-bold text-foreground truncate">{task.title}</h4>
+                  {task.is_urgent && <Flame className="h-3.5 w-3.5 text-destructive flex-shrink-0 animate-pulse" />}
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-0.5">{task.subject_name}</p>
+                <div className="flex items-center gap-2 mt-1.5">
+                  <span className="text-[9px] text-muted-foreground flex items-center gap-1 bg-muted/80 px-2 py-0.5 rounded-full">
+                    <Clock className="h-3 w-3" />{task.due_date}
+                  </span>
+                  <Badge variant={task.task_type === "Quiz" ? "default" : "secondary"} className="text-[8px] font-bold px-2 py-0 rounded-full">
+                    {task.task_type}
+                  </Badge>
+                  {task.is_urgent && (
+                    <span className="text-[8px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">URGENT</span>
+                  )}
+                </div>
               </div>
             </div>
           </div>
