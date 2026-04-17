@@ -31,12 +31,16 @@ const AdminCodeDialog = ({ open, onOpenChange }: Props) => {
       return;
     }
     if (!user) {
-      // Save admin code intent and redirect to login
       sessionStorage.setItem("pending_admin_grant", "true");
       onOpenChange(false);
       setCode("");
-      toast.info("Please log in first. Admin access will be granted automatically after login.");
+      toast.info(`Please log in with ${ADMIN_EMAIL} to access admin.`);
       navigate("/login");
+      return;
+    }
+    if (user.email?.toLowerCase() !== ADMIN_EMAIL) {
+      toast.error("Admin access is restricted to the authorized account only.");
+      setCode("");
       return;
     }
 
