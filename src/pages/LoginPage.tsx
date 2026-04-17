@@ -42,6 +42,20 @@ const LoginPage = () => {
         return;
       }
 
+      // Check if admin grant is pending
+      const pendingAdmin = sessionStorage.getItem("pending_admin_grant");
+      if (pendingAdmin === "true") {
+        sessionStorage.removeItem("pending_admin_grant");
+        const { error: rpcError } = await supabase.rpc("grant_admin_role", { _user_id: data.user.id });
+        if (rpcError) {
+          toast.error("Login successful but failed to grant admin: " + rpcError.message);
+        } else {
+          toast.success("Admin access granted!");
+          navigate("/admin");
+          return;
+        }
+      }
+
       toast.success("Login successful!");
       navigate("/");
     } catch (error: any) {
