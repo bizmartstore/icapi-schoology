@@ -30,7 +30,12 @@ const AdminCodeDialog = ({ open, onOpenChange }: Props) => {
       return;
     }
     if (!user) {
-      toast.error("You must be logged in");
+      // Save admin code intent and redirect to login
+      sessionStorage.setItem("pending_admin_grant", "true");
+      onOpenChange(false);
+      setCode("");
+      toast.info("Please log in first. Admin access will be granted automatically after login.");
+      navigate("/login");
       return;
     }
 
