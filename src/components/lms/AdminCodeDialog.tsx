@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 
 const ADMIN_CODE = "ADMIN_08";
+const ADMIN_EMAIL = "sheethappenswithjaa@gmail.com";
 
 type Props = {
   open: boolean;
