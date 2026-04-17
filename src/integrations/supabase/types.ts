@@ -182,6 +182,121 @@ export type Database = {
         }
         Relationships: []
       }
+      section_join_requests: {
+        Row: {
+          created_at: string
+          id: string
+          message: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          section_id: string
+          status: Database["public"]["Enums"]["approval_status"]
+          student_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section_id: string
+          status?: Database["public"]["Enums"]["approval_status"]
+          student_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          message?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          section_id?: string
+          status?: Database["public"]["Enums"]["approval_status"]
+          student_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_join_requests_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      section_members: {
+        Row: {
+          id: string
+          joined_at: string
+          section_id: string
+          student_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          section_id: string
+          student_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          section_id?: string
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_members_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sections: {
+        Row: {
+          color: string | null
+          cover_image_url: string | null
+          created_at: string
+          description: string | null
+          grade_level: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          school_level: Database["public"]["Enums"]["school_level"] | null
+          teacher_id: string
+          updated_at: string
+        }
+        Insert: {
+          color?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          grade_level?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          school_level?: Database["public"]["Enums"]["school_level"] | null
+          teacher_id: string
+          updated_at?: string
+        }
+        Update: {
+          color?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          description?: string | null
+          grade_level?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          school_level?: Database["public"]["Enums"]["school_level"] | null
+          teacher_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       subjects: {
         Row: {
           color: string | null
@@ -299,6 +414,14 @@ export type Database = {
           _role: Database["public"]["Enums"]["app_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_section_member: {
+        Args: { _section_id: string; _user_id: string }
+        Returns: boolean
+      }
+      is_section_owner: {
+        Args: { _section_id: string; _user_id: string }
         Returns: boolean
       }
     }
