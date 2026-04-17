@@ -2,14 +2,15 @@ import LMSHeader from "@/components/lms/LMSHeader";
 import BannerCarousel from "@/components/lms/BannerCarousel";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
 import SubjectCards from "@/components/lms/SubjectCards";
-import ContinueLearning from "@/components/lms/ContinueLearning";
+import SectionsList from "@/components/lms/SectionsList";
 import UpcomingTasks from "@/components/lms/UpcomingTasks";
 import Announcements from "@/components/lms/Announcements";
 import TopPerforming from "@/components/lms/TopPerforming";
 import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star } from "lucide-react";
+import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock } from "lucide-react";
+import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
