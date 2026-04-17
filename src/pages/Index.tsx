@@ -2,20 +2,24 @@ import LMSHeader from "@/components/lms/LMSHeader";
 import BannerCarousel from "@/components/lms/BannerCarousel";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
 import SubjectCards from "@/components/lms/SubjectCards";
-import ContinueLearning from "@/components/lms/ContinueLearning";
+import SectionsList from "@/components/lms/SectionsList";
 import UpcomingTasks from "@/components/lms/UpcomingTasks";
 import Announcements from "@/components/lms/Announcements";
 import TopPerforming from "@/components/lms/TopPerforming";
 import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
-import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star } from "lucide-react";
+import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock } from "lucide-react";
+import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const { profile, roles, signOut, user } = useAuth();
   const navigate = useNavigate();
+  const { isMemberOfAny } = useSectionMembership();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
+  const isStudent = roles.includes("student");
+  const showJoinNotice = isLoggedIn && isStudent && !isMemberOfAny;
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -113,12 +117,25 @@ const Index = () => {
           <SubjectCards />
         </div>
 
-        {/* Continue Learning */}
+        {/* Sections (replaces Continue Learning) */}
         <div className="bg-card mt-2 border-y border-border">
           <div className="px-4 pt-3">
-            <SectionHeader icon={<Zap className="h-3.5 w-3.5 text-primary" />} title="Continue Learning" />
+            <SectionHeader
+              icon={<School className="h-3.5 w-3.5 text-primary" />}
+              title="Advisory Sections"
+              actionLabel={roles.includes("teacher") ? "Manage" : undefined}
+              onAction={() => navigate("/sections")}
+            />
           </div>
-          <ContinueLearning />
+          {showJoinNotice && (
+            <div className="mx-4 mb-2 rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-2.5 flex items-center gap-2">
+              <Lock className="h-3.5 w-3.5 text-primary flex-shrink-0" />
+              <p className="text-[11px] text-foreground font-medium leading-tight">
+                You're browsing in <span className="font-bold">read-only mode</span>. Join a section below to unlock subjects, tasks & messages.
+              </p>
+            </div>
+          )}
+          <SectionsList />
         </div>
 
         {/* Tasks */}

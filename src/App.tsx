@@ -15,6 +15,7 @@ import StudentSignupPage from "./pages/StudentSignupPage.tsx";
 import TeacherSignupPage from "./pages/TeacherSignupPage.tsx";
 import AdminDashboard from "./pages/AdminDashboard.tsx";
 import TeacherApprovalPage from "./pages/TeacherApprovalPage.tsx";
+import TeacherSectionsPage from "./pages/TeacherSectionsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -71,6 +72,7 @@ const App = () => (
             <Route path="/notifications" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/approvals" element={<ProtectedRoute><TeacherApprovalPage /></ProtectedRoute>} />
+            <Route path="/sections" element={<ProtectedRoute><TeacherSectionsPage /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

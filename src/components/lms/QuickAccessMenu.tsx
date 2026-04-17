@@ -1,38 +1,60 @@
 import { useEffect, useRef, useState } from "react";
-import { LayoutDashboard, BookOpen, Calendar, MessageCircle, BarChart3, Bell, UserCheck } from "lucide-react";
+import { LayoutDashboard, BookOpen, Calendar, MessageCircle, BarChart3, Bell, UserCheck, School } from "lucide-react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { toast } from "sonner";
 
-const menuItems = [
+type MenuItem = {
+  icon: any;
+  label: string;
+  path: string;
+  requiresAuth: boolean;
+  requiresSection?: boolean;
+  emoji: string;
+  gradient: string;
+};
+
+const menuItems: MenuItem[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/", requiresAuth: false, emoji: "🏠", gradient: "from-primary to-primary/80" },
-  { icon: BookOpen, label: "Subjects", path: "/subjects", requiresAuth: false, emoji: "📚", gradient: "from-subject-science to-subject-science/80" },
-  { icon: Calendar, label: "Calendar", path: "/calendar", requiresAuth: true, emoji: "📅", gradient: "from-info to-info/80" },
-  { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: true, emoji: "💬", gradient: "from-subject-english to-subject-english/80" },
-  { icon: BarChart3, label: "Grades", path: "/grades", requiresAuth: true, emoji: "📊", gradient: "from-subject-ap to-subject-ap/80" },
-  { icon: Bell, label: "Alerts", path: "/notifications", requiresAuth: true, emoji: "🔔", gradient: "from-warning to-warning/80" },
+  { icon: BookOpen, label: "Subjects", path: "/subjects", requiresAuth: true, requiresSection: true, emoji: "📚", gradient: "from-subject-science to-subject-science/80" },
+  { icon: Calendar, label: "Calendar", path: "/calendar", requiresAuth: true, requiresSection: true, emoji: "📅", gradient: "from-info to-info/80" },
+  { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: true, requiresSection: true, emoji: "💬", gradient: "from-subject-english to-subject-english/80" },
+  { icon: BarChart3, label: "Grades", path: "/grades", requiresAuth: true, requiresSection: true, emoji: "📊", gradient: "from-subject-ap to-subject-ap/80" },
+  { icon: Bell, label: "Alerts", path: "/notifications", requiresAuth: true, requiresSection: true, emoji: "🔔", gradient: "from-warning to-warning/80" },
 ];
 
 const QuickAccessMenu = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, profile, roles } = useAuth();
+  const { isMemberOfAny } = useSectionMembership();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
   const isTeacher = roles.includes("teacher");
+  const isStudent = roles.includes("student");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
 
-  const handleClick = (item: typeof menuItems[0]) => {
+  const handleClick = (item: MenuItem) => {
     if (item.requiresAuth && !isLoggedIn) {
       toast.info("Please login to access this feature");
       navigate("/login");
       return;
     }
+    // Students must join a section to access gated features. Teachers/admins bypass.
+    if (item.requiresSection && isStudent && !isMemberOfAny) {
+      toast.info("Join a section first to unlock this");
+      return;
+    }
     navigate(item.path);
   };
 
-  const allItems = isTeacher
-    ? [...menuItems, { icon: UserCheck, label: "Approvals", path: "/approvals", requiresAuth: true, emoji: "✅", gradient: "from-success to-success/80" }]
+  const allItems: MenuItem[] = isTeacher
+    ? [
+        ...menuItems,
+        { icon: School, label: "Sections", path: "/sections", requiresAuth: true, emoji: "🏫", gradient: "from-info to-info/80" },
+        { icon: UserCheck, label: "Approvals", path: "/approvals", requiresAuth: true, emoji: "✅", gradient: "from-success to-success/80" },
+      ]
     : menuItems;
 
   // Auto-scroll marquee effect
