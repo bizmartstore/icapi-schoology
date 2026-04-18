@@ -87,6 +87,14 @@ const Index = () => {
         {/* Quick Access Icons - Shopee category style */}
         <QuickAccessMenu />
 
+        {/* Announcements (moved up, horizontal, compact) */}
+        <div className="bg-card mt-2 border-y border-border">
+          <div className="px-4 pt-3">
+            <SectionHeader icon={<Sparkles className="h-3.5 w-3.5 text-info" />} title="Announcements" />
+          </div>
+          <Announcements />
+        </div>
+
         {/* How It Works - for guests */}
         {!isLoggedIn && (
           <div className="bg-card mt-2 border-y border-border">
@@ -152,14 +160,6 @@ const Index = () => {
             <SectionHeader icon={<Star className="h-3.5 w-3.5 text-accent" />} title="Top Performing" />
           </div>
           <TopPerforming />
-        </div>
-
-        {/* Announcements */}
-        <div className="bg-card mt-2 border-y border-border">
-          <div className="px-4 pt-3">
-            <SectionHeader icon={<Sparkles className="h-3.5 w-3.5 text-info" />} title="Announcements" actionLabel="View All" />
-          </div>
-          <Announcements />
         </div>
 
         {isLoggedIn && (
