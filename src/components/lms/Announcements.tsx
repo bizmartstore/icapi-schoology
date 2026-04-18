@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
-import { Megaphone, ChevronRight, Sparkles } from "lucide-react";
+import { Megaphone, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
+} from "@/components/ui/dialog";
 import { supabase } from "@/integrations/supabase/client";
 
 type Announcement = {
@@ -8,20 +11,29 @@ type Announcement = {
   title: string;
   from_name: string | null;
   preview_text: string | null;
+  full_content: string | null;
   is_new: boolean | null;
   created_at: string | null;
 };
 
 const Announcements = () => {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [open, setOpen] = useState<Announcement | null>(null);
 
   useEffect(() => {
-    supabase.from("announcements").select("*").eq("is_active", true).order("created_at", { ascending: false }).then(({ data }) => {
+    const load = async () => {
+      const { data } = await supabase
+        .from("announcements").select("*").eq("is_active", true)
+        .order("created_at", { ascending: false });
       setAnnouncements((data as Announcement[]) || []);
-    });
+    };
+    load();
+    const ch = supabase
+      .channel("announcements-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, load)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
   }, []);
-
-  if (announcements.length === 0) return null;
 
   const timeAgo = (dateStr: string | null) => {
     if (!dateStr) return "";
@@ -33,40 +45,67 @@ const Announcements = () => {
     return `${Math.floor(hours / 24)}d ago`;
   };
 
+  if (announcements.length === 0) {
+    return (
+      <div className="px-4 pb-3">
+        <div className="rounded-xl border border-dashed border-border bg-muted/30 p-3 text-center">
+          <p className="text-[11px] text-muted-foreground">No announcements yet.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="px-4 pb-3">
-      <div className="space-y-2.5">
-        {announcements.map((item, idx) => (
+      <div className="flex gap-3 overflow-x-auto scrollbar-hide pb-1">
+        {announcements.map((item) => (
           <button
             key={item.id}
-            className="w-full flex items-center gap-3 p-3 rounded-xl bg-card border border-border/50 hover:shadow-md transition-all text-left active:scale-[0.98] card-shadow"
+            onClick={() => setOpen(item)}
+            className="min-w-[200px] max-w-[200px] bg-card rounded-xl overflow-hidden transition-all duration-200 active:scale-95 hover:shadow-md border border-border/50 card-shadow flex-shrink-0 text-left"
           >
-            <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              item.is_new ? "bg-gradient-to-br from-info to-info/70" : "bg-info/10"
+            <div className={`relative h-[60px] flex items-center justify-center ${
+              item.is_new ? "bg-gradient-to-br from-info to-info/70" : "bg-gradient-to-br from-muted to-muted/60"
             }`}>
               {item.is_new
-                ? <Sparkles className="h-5 w-5 text-primary-foreground" />
-                : <Megaphone className="h-5 w-5 text-info" />
+                ? <Sparkles className="h-6 w-6 text-primary-foreground drop-shadow" />
+                : <Megaphone className="h-6 w-6 text-info" />
               }
-            </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-1.5">
-                <h4 className="text-[12px] font-bold text-foreground truncate">{item.title}</h4>
-                {item.is_new && (
-                  <Badge className="text-[7px] font-bold px-1.5 py-0 rounded-full bg-destructive text-destructive-foreground border-0 shrink-0 animate-pulse">
-                    NEW
-                  </Badge>
-                )}
-              </div>
-              {item.preview_text && (
-                <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{item.preview_text}</p>
+              {item.is_new && (
+                <Badge className="absolute top-1.5 right-1.5 text-[7px] font-bold px-1.5 py-0 rounded-full bg-destructive text-destructive-foreground border-0 animate-pulse">
+                  NEW
+                </Badge>
               )}
-              <p className="text-[9px] text-muted-foreground/70 mt-0.5">{item.from_name} • {timeAgo(item.created_at)}</p>
             </div>
-            <ChevronRight className="h-4 w-4 text-muted-foreground/40 flex-shrink-0" />
+            <div className="p-2.5">
+              <h3 className="text-[12px] font-bold text-foreground leading-tight line-clamp-2 min-h-[28px]">{item.title}</h3>
+              <p className="text-[9px] text-muted-foreground mt-1 line-clamp-1">{item.from_name}</p>
+              <p className="text-[8px] text-muted-foreground/70 mt-0.5">{timeAgo(item.created_at)}</p>
+            </div>
           </button>
         ))}
       </div>
+
+      <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
+        <DialogContent className="max-w-sm rounded-2xl">
+          {open && (
+            <>
+              <DialogHeader>
+                <DialogTitle className="flex items-start gap-2 text-base text-left">
+                  <Megaphone className="h-5 w-5 text-info flex-shrink-0 mt-0.5" />
+                  <span>{open.title}</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs text-left">
+                  {open.from_name} • {timeAgo(open.created_at)}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
+                {open.full_content || open.preview_text || "No additional details."}
+              </div>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

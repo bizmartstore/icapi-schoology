@@ -15,13 +15,15 @@ type MenuItem = {
   gradient: string;
 };
 
-const menuItems: MenuItem[] = [
+type MenuItemX = MenuItem & { comingSoon?: boolean };
+
+const menuItems: MenuItemX[] = [
   { icon: LayoutDashboard, label: "Dashboard", path: "/", requiresAuth: false, emoji: "🏠", gradient: "from-primary to-primary/80" },
   { icon: BookOpen, label: "Subjects", path: "/subjects", requiresAuth: true, requiresSection: true, emoji: "📚", gradient: "from-subject-science to-subject-science/80" },
   { icon: Calendar, label: "Calendar", path: "/calendar", requiresAuth: true, requiresSection: true, emoji: "📅", gradient: "from-info to-info/80" },
-  { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: true, requiresSection: true, emoji: "💬", gradient: "from-subject-english to-subject-english/80" },
+  { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: false, emoji: "💬", gradient: "from-subject-english to-subject-english/80", comingSoon: true },
   { icon: BarChart3, label: "Grades", path: "/grades", requiresAuth: true, requiresSection: true, emoji: "📊", gradient: "from-subject-ap to-subject-ap/80" },
-  { icon: Bell, label: "Alerts", path: "/notifications", requiresAuth: true, requiresSection: true, emoji: "🔔", gradient: "from-warning to-warning/80" },
+  { icon: Bell, label: "Alerts", path: "/notifications", requiresAuth: false, emoji: "🔔", gradient: "from-warning to-warning/80", comingSoon: true },
 ];
 
 const QuickAccessMenu = () => {
@@ -35,7 +37,11 @@ const QuickAccessMenu = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
 
-  const handleClick = (item: MenuItem) => {
+  const handleClick = (item: MenuItemX) => {
+    if (item.comingSoon) {
+      toast.info(`${item.label} is coming soon! 🚀`);
+      return;
+    }
     if (item.requiresAuth && !isLoggedIn) {
       toast.info("Please login to access this feature");
       navigate("/login");
@@ -49,7 +55,7 @@ const QuickAccessMenu = () => {
     navigate(item.path);
   };
 
-  const allItems: MenuItem[] = isTeacher
+  const allItems: MenuItemX[] = isTeacher
     ? [
         ...menuItems,
         { icon: School, label: "Sections", path: "/sections", requiresAuth: true, emoji: "🏫", gradient: "from-info to-info/80" },
@@ -57,19 +63,20 @@ const QuickAccessMenu = () => {
       ]
     : menuItems;
 
-  // Auto-scroll marquee effect
+  // Auto-scroll marquee effect — RTL (right to left), much slower
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
+    // Start at end so visible motion is right-to-left
+    el.scrollLeft = el.scrollWidth / 2;
     let animId: number;
-    let speed = 0.15;
+    const speed = 0.04; // very slow
 
     const step = () => {
       if (!paused && el) {
-        el.scrollLeft += speed;
-        // Reset when reaching duplicate set
-        if (el.scrollLeft >= el.scrollWidth / 2) {
-          el.scrollLeft = 0;
+        el.scrollLeft -= speed;
+        if (el.scrollLeft <= 0) {
+          el.scrollLeft = el.scrollWidth / 2;
         }
       }
       animId = requestAnimationFrame(step);
