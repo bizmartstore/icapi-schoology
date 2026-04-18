@@ -12,16 +12,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  ArrowLeft, CheckCircle2, XCircle, Clock, Users, Shield, Image, BookOpen,
-  Megaphone, FileText, GraduationCap, Plus, Pencil, Trash2, Save
+  ArrowLeft, CheckCircle2, XCircle, Users, Shield, Image, BookOpen,
+  Megaphone, FileText, GraduationCap, Plus, Pencil, Trash2, Save, UserCheck, X,
 } from "lucide-react";
 
-type AdminTab = "users" | "banners" | "subjects" | "announcements" | "tasks" | "lessons";
+type AdminTab = "users" | "banners" | "subjects" | "assignments" | "announcements" | "tasks" | "lessons";
 
 const TABS: { key: AdminTab; label: string; icon: any }[] = [
   { key: "users", label: "Users", icon: Users },
   { key: "banners", label: "Banners", icon: Image },
   { key: "subjects", label: "Subjects", icon: BookOpen },
+  { key: "assignments", label: "Assign", icon: UserCheck },
   { key: "announcements", label: "Announce", icon: Megaphone },
   { key: "tasks", label: "Tasks", icon: FileText },
   { key: "lessons", label: "Lessons", icon: GraduationCap },
@@ -46,31 +47,34 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(false);
   const isAdmin = roles.includes("admin");
 
-  // Data states
   const [users, setUsers] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
   const [lessons, setLessons] = useState<any[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<any[]>([]);
 
-  // Dialog states
   const [editDialog, setEditDialog] = useState<{ open: boolean; type: AdminTab; item: any | null }>({ open: false, type: "banners", item: null });
+  const [assignDialog, setAssignDialog] = useState(false);
+  const [assignForm, setAssignForm] = useState<{ teacher_id: string; subject_id: string }>({ teacher_id: "", subject_id: "" });
 
   useEffect(() => {
     if (!isAdmin) { navigate("/"); return; }
     fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin]);
 
   const fetchAll = async () => {
     setLoading(true);
-    const [u, b, s, a, t, l] = await Promise.all([
+    const [u, b, s, a, t, l, ts] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("banners").select("*").order("sort_order"),
       supabase.from("subjects").select("*").order("sort_order"),
       supabase.from("announcements").select("*").order("created_at", { ascending: false }),
       supabase.from("tasks").select("*").order("created_at", { ascending: false }),
       supabase.from("lessons").select("*").order("created_at", { ascending: false }),
+      supabase.from("teacher_subjects").select("*").order("created_at", { ascending: false }),
     ]);
     setUsers(u.data || []);
     setBanners(b.data || []);
@@ -78,6 +82,7 @@ const AdminDashboard = () => {
     setAnnouncements(a.data || []);
     setTasks(t.data || []);
     setLessons(l.data || []);
+    setTeacherSubjects(ts.data || []);
     setLoading(false);
   };
 
@@ -103,6 +108,31 @@ const AdminDashboard = () => {
 
   const openCreate = (type: AdminTab) => setEditDialog({ open: true, type, item: null });
   const openEdit = (type: AdminTab, item: any) => setEditDialog({ open: true, type, item });
+
+  const teachers = users.filter((u) => u.user_type === "teacher" && u.approval_status === "approved");
+
+  const createAssignment = async () => {
+    if (!assignForm.teacher_id || !assignForm.subject_id) {
+      toast.error("Pick a teacher and a subject");
+      return;
+    }
+    const { error } = await supabase.from("teacher_subjects").insert(assignForm);
+    if (error) {
+      toast.error(error.message.includes("duplicate") ? "Already assigned" : error.message);
+      return;
+    }
+    toast.success("Subject assigned to teacher");
+    setAssignForm({ teacher_id: "", subject_id: "" });
+    setAssignDialog(false);
+    fetchAll();
+  };
+
+  const removeAssignment = async (id: string) => {
+    const { error } = await supabase.from("teacher_subjects").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Assignment removed");
+    fetchAll();
+  };
 
   return (
     <div className="min-h-screen bg-background pb-8">
@@ -213,6 +243,9 @@ const AdminDashboard = () => {
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
                 </div>
+                <p className="text-[10px] text-muted-foreground -mt-2">
+                  Tip: assign teachers to subjects in the <span className="font-bold text-primary">Assign</span> tab.
+                </p>
                 {["elementary", "junior_high_school"].map((level) => (
                   <div key={level}>
                     <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2 mt-3">
@@ -227,7 +260,7 @@ const AdminDashboard = () => {
                             </div>
                             <div>
                               <h3 className="text-[13px] font-bold text-foreground">{s.name}</h3>
-                              <p className="text-[10px] text-muted-foreground">{s.teacher_name} • {s.grade_level}</p>
+                              <p className="text-[10px] text-muted-foreground">{s.grade_level}</p>
                             </div>
                           </div>
                           <div className="flex items-center gap-1">
@@ -247,6 +280,56 @@ const AdminDashboard = () => {
               </div>
             )}
 
+            {/* ASSIGNMENTS TAB */}
+            {tab === "assignments" && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-foreground">Teacher → Subject ({teacherSubjects.length})</h3>
+                  <Button size="sm" className="rounded-xl text-xs" onClick={() => setAssignDialog(true)} disabled={teachers.length === 0 || subjects.length === 0}>
+                    <Plus className="h-3 w-3 mr-1" /> Assign
+                  </Button>
+                </div>
+                {teachers.length === 0 && (
+                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-xl p-3">
+                    No approved teachers yet. Approve a teacher in the Users tab first.
+                  </p>
+                )}
+                {teachers.map((t) => {
+                  const myAssignments = teacherSubjects
+                    .filter((ts) => ts.teacher_id === t.user_id)
+                    .map((ts) => ({ ...ts, subject: subjects.find((s) => s.id === ts.subject_id) }))
+                    .filter((ts) => ts.subject);
+                  return (
+                    <div key={t.user_id} className="bg-card rounded-2xl p-3 card-shadow">
+                      <div className="flex items-center gap-2 mb-2">
+                        <div className="h-8 w-8 rounded-full bg-primary/15 flex items-center justify-center">
+                          <span className="text-xs font-extrabold text-primary">{t.first_name?.charAt(0)}</span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-foreground truncate">{t.last_name}, {t.first_name}</p>
+                          <p className="text-[10px] text-muted-foreground truncate">{t.email}</p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {myAssignments.length === 0 ? (
+                          <p className="text-[10px] text-muted-foreground italic">No subjects assigned</p>
+                        ) : (
+                          myAssignments.map((ts) => (
+                            <span key={ts.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-full">
+                              {ts.subject.name}
+                              <button onClick={() => removeAssignment(ts.id)} className="hover:bg-primary/20 rounded-full p-0.5">
+                                <X className="h-2.5 w-2.5" />
+                              </button>
+                            </span>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* ANNOUNCEMENTS TAB */}
             {tab === "announcements" && (
               <div className="space-y-3">
@@ -256,6 +339,9 @@ const AdminDashboard = () => {
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
                 </div>
+                <p className="text-[10px] text-muted-foreground -mt-2">
+                  Admin announcements are <span className="font-bold">general</span> and visible to everyone.
+                </p>
                 {announcements.map((a) => (
                   <div key={a.id} className="bg-card rounded-2xl p-4 card-shadow">
                     <div className="flex items-start justify-between">
@@ -263,6 +349,7 @@ const AdminDashboard = () => {
                         <div className="flex items-center gap-2 mb-1">
                           <h3 className="text-sm font-bold text-foreground">{a.title}</h3>
                           {a.is_new && <Badge className="text-[8px] bg-destructive border-0">NEW</Badge>}
+                          <Badge variant="outline" className="text-[8px]">{a.scope || "general"}</Badge>
                         </div>
                         <p className="text-[11px] text-muted-foreground">{a.from_name}</p>
                         <p className="text-[11px] text-muted-foreground line-clamp-1">{a.preview_text}</p>
@@ -352,6 +439,42 @@ const AdminDashboard = () => {
 
       {/* Edit/Create Dialog */}
       <EditDialog dialog={editDialog} onClose={() => setEditDialog({ ...editDialog, open: false })} onSaved={fetchAll} />
+
+      {/* Assignment Dialog */}
+      <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader><DialogTitle>Assign Subject to Teacher</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1.5">
+              <Label className="text-xs">Teacher</Label>
+              <Select value={assignForm.teacher_id} onValueChange={(v) => setAssignForm({ ...assignForm, teacher_id: v })}>
+                <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder="Pick a teacher" /></SelectTrigger>
+                <SelectContent>
+                  {teachers.map((t) => (
+                    <SelectItem key={t.user_id} value={t.user_id}>
+                      {t.last_name}, {t.first_name} ({t.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label className="text-xs">Subject</Label>
+              <Select value={assignForm.subject_id} onValueChange={(v) => setAssignForm({ ...assignForm, subject_id: v })}>
+                <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder="Pick a subject" /></SelectTrigger>
+                <SelectContent>
+                  {subjects.map((s) => (
+                    <SelectItem key={s.id} value={s.id}>{s.name} — {s.grade_level || s.school_level}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button className="w-full rounded-xl" onClick={createAssignment}>
+              <Save className="h-4 w-4 mr-1" /> Assign
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
@@ -363,16 +486,14 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   const isEdit = !!dialog.item;
 
   useEffect(() => {
-    if (dialog.open) {
-      setForm(dialog.item || getDefaults(dialog.type));
-    }
-  }, [dialog.open, dialog.item]);
+    if (dialog.open) setForm(dialog.item || getDefaults(dialog.type));
+  }, [dialog.open, dialog.item, dialog.type]);
 
   const getDefaults = (type: AdminTab): Record<string, any> => {
     switch (type) {
       case "banners": return { title: "", subtitle: "", image_url: "", gradient: "from-primary/80 to-primary/40", sort_order: 0, is_active: true };
-      case "subjects": return { name: "", teacher_name: "", icon_name: "BookOpen", color: "bg-subject-math", school_level: "elementary", grade_level: "Grade 4", progress: 0, sort_order: 0, is_active: true };
-      case "announcements": return { title: "", from_name: "", preview_text: "", full_content: "", is_new: true, is_active: true };
+      case "subjects": return { name: "", icon_name: "BookOpen", color: "bg-subject-math", school_level: "elementary", grade_level: "Grade 4", sort_order: 0, is_active: true };
+      case "announcements": return { title: "", from_name: "", preview_text: "", full_content: "", is_new: true, is_active: true, scope: "general" };
       case "tasks": return { title: "", subject_name: "", due_date: "", task_type: "Assignment", is_urgent: false, is_active: true };
       case "lessons": return { subject_name: "", lesson_title: "", chapter: "", time_left: "", progress: 0, color: "bg-subject-math", is_active: true };
       default: return {};
@@ -385,6 +506,12 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
     setSaving(true);
     const table = dialog.type as "banners" | "subjects" | "announcements" | "tasks" | "lessons";
     const { id, created_at, updated_at, ...data } = form;
+
+    // Force admin announcements to general scope (RLS lets admins insert anything; keep tidy)
+    if (table === "announcements") {
+      data.scope = "general";
+      data.section_id = null;
+    }
 
     let error;
     if (isEdit) {
@@ -419,7 +546,6 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
           {dialog.type === "subjects" && (
             <>
               <Field label="Subject Name" value={form.name} onChange={(v) => set("name", v)} />
-              <Field label="Teacher Name" value={form.teacher_name} onChange={(v) => set("teacher_name", v)} />
               <div className="space-y-1.5">
                 <Label className="text-xs">School Level</Label>
                 <Select value={form.school_level} onValueChange={(v) => set("school_level", v)}>
@@ -449,8 +575,10 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
                   </SelectContent>
                 </Select>
               </div>
-              <NumberField label="Progress (%)" value={form.progress} onChange={(v) => set("progress", v)} />
               <NumberField label="Sort Order" value={form.sort_order} onChange={(v) => set("sort_order", v)} />
+              <p className="text-[10px] text-muted-foreground bg-muted/30 rounded-lg p-2">
+                💡 Teacher is assigned via the <span className="font-bold text-primary">Assign</span> tab — no need to type a teacher name here.
+              </p>
             </>
           )}
 
@@ -461,6 +589,10 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
               <div className="space-y-1.5">
                 <Label className="text-xs">Preview Text</Label>
                 <Textarea className="rounded-xl text-sm" value={form.preview_text || ""} onChange={(e) => set("preview_text", e.target.value)} />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Full Content</Label>
+                <Textarea className="rounded-xl text-sm" rows={4} value={form.full_content || ""} onChange={(e) => set("full_content", e.target.value)} />
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={form.is_new} onCheckedChange={(v) => set("is_new", v)} />
