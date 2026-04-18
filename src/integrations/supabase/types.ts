@@ -17,38 +17,55 @@ export type Database = {
       announcements: {
         Row: {
           created_at: string | null
+          created_by: string | null
           from_name: string | null
           full_content: string | null
           id: string
           is_active: boolean | null
           is_new: boolean | null
           preview_text: string | null
+          scope: string
+          section_id: string | null
           title: string
           updated_at: string | null
         }
         Insert: {
           created_at?: string | null
+          created_by?: string | null
           from_name?: string | null
           full_content?: string | null
           id?: string
           is_active?: boolean | null
           is_new?: boolean | null
           preview_text?: string | null
+          scope?: string
+          section_id?: string | null
           title: string
           updated_at?: string | null
         }
         Update: {
           created_at?: string | null
+          created_by?: string | null
           from_name?: string | null
           full_content?: string | null
           id?: string
           is_active?: boolean | null
           is_new?: boolean | null
           preview_text?: string | null
+          scope?: string
+          section_id?: string | null
           title?: string
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "announcements_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       banners: {
         Row: {
@@ -85,6 +102,44 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      class_schedules: {
+        Row: {
+          created_at: string
+          day_of_week: number
+          end_time: string
+          id: string
+          room: string | null
+          section_subject_id: string
+          start_time: string
+        }
+        Insert: {
+          created_at?: string
+          day_of_week: number
+          end_time: string
+          id?: string
+          room?: string | null
+          section_subject_id: string
+          start_time: string
+        }
+        Update: {
+          created_at?: string
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          room?: string | null
+          section_subject_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "class_schedules_section_subject_id_fkey"
+            columns: ["section_subject_id"]
+            isOneToOne: false
+            referencedRelation: "section_subjects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       lessons: {
         Row: {
@@ -255,6 +310,45 @@ export type Database = {
           },
         ]
       }
+      section_subjects: {
+        Row: {
+          created_at: string
+          id: string
+          section_id: string
+          subject_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          section_id: string
+          subject_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          section_id?: string
+          subject_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "section_subjects_section_id_fkey"
+            columns: ["section_id"]
+            isOneToOne: false
+            referencedRelation: "sections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "section_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sections: {
         Row: {
           color: string | null
@@ -409,6 +503,35 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      teacher_subjects: {
+        Row: {
+          created_at: string
+          id: string
+          subject_id: string
+          teacher_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          subject_id: string
+          teacher_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          subject_id?: string
+          teacher_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "teacher_subjects_subject_id_fkey"
+            columns: ["subject_id"]
+            isOneToOne: false
+            referencedRelation: "subjects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {

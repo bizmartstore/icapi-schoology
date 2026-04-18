@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,7 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, Users, CheckCircle2, XCircle, Clock, Trash2, Pencil, GraduationCap, School } from "lucide-react";
+import {
+  ArrowLeft, Plus, Users, CheckCircle2, XCircle, Clock, Trash2, Pencil,
+  School, BookOpen, CalendarClock, Megaphone, Briefcase, ListChecks, X, Save,
+} from "lucide-react";
 import { toast } from "sonner";
 import LMSHeader from "@/components/lms/LMSHeader";
 
@@ -24,17 +27,6 @@ type Section = {
   is_active: boolean;
 };
 
-type JoinRequest = {
-  id: string;
-  section_id: string;
-  student_id: string;
-  status: "pending" | "approved" | "rejected";
-  message: string | null;
-  created_at: string;
-  student?: { first_name: string; last_name: string; email: string; grade_level: string | null };
-  section?: { name: string };
-};
-
 const COLOR_OPTIONS = [
   { value: "from-primary to-primary/70", label: "Orange" },
   { value: "from-subject-math to-subject-math/70", label: "Blue" },
@@ -44,73 +36,103 @@ const COLOR_OPTIONS = [
   { value: "from-subject-mapeh to-subject-mapeh/70", label: "Red" },
 ];
 
+const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
 const TeacherSectionsPage = () => {
   const navigate = useNavigate();
   const { user, roles } = useAuth();
   const isTeacher = roles.includes("teacher");
-  const [tab, setTab] = useState<"sections" | "requests" | "members">("sections");
+
+  const [tab, setTab] = useState<"advisory" | "teaching" | "requests" | "members">("advisory");
   const [sections, setSections] = useState<Section[]>([]);
-  const [requests, setRequests] = useState<JoinRequest[]>([]);
+  const [requests, setRequests] = useState<any[]>([]);
   const [members, setMembers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Section dialog
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Section | null>(null);
   const [form, setForm] = useState<Partial<Section>>({});
 
+  // Curriculum dialog (Subjects + Schedule + Announcements per section)
+  const [curOpen, setCurOpen] = useState<Section | null>(null);
+
+  // My teaching data
+  const [mySectionSubjects, setMySectionSubjects] = useState<any[]>([]);
+  const [mySchedules, setMySchedules] = useState<any[]>([]);
+
   useEffect(() => {
-    if (!isTeacher) {
-      navigate("/");
-      return;
-    }
+    if (!isTeacher) { navigate("/"); return; }
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isTeacher, user?.id]);
+
+  // Realtime subscriptions
+  useEffect(() => {
+    if (!user) return;
+    const ch = supabase
+      .channel("teacher-dashboard-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "section_join_requests" }, fetchAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "section_members" }, fetchAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects" }, fetchAll)
+      .on("postgres_changes", { event: "*", schema: "public", table: "class_schedules" }, fetchAll)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id]);
 
   const fetchAll = async () => {
     if (!user) return;
     setLoading(true);
     const { data: sectionData } = await supabase
-      .from("sections")
-      .select("*")
-      .eq("teacher_id", user.id)
-      .order("created_at", { ascending: false });
-    setSections((sectionData as Section[]) || []);
+      .from("sections").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
+    const list = (sectionData as Section[]) || [];
+    setSections(list);
 
-    const sectionIds = (sectionData || []).map((s: any) => s.id);
-    if (sectionIds.length) {
-      const { data: reqData } = await supabase
-        .from("section_join_requests")
-        .select("*")
-        .in("section_id", sectionIds)
-        .order("created_at", { ascending: false });
-      const reqs = (reqData as JoinRequest[]) || [];
-      // hydrate student + section
-      const studentIds = [...new Set(reqs.map((r) => r.student_id))];
-      const { data: students } = studentIds.length
-        ? await supabase.from("profiles").select("user_id, first_name, last_name, email, grade_level").in("user_id", studentIds)
-        : { data: [] as any[] };
-      const studentMap: Record<string, any> = {};
-      (students || []).forEach((s: any) => (studentMap[s.user_id] = s));
-      const sectionMap: Record<string, any> = {};
-      (sectionData || []).forEach((s: any) => (sectionMap[s.id] = s));
-      setRequests(reqs.map((r) => ({ ...r, student: studentMap[r.student_id], section: sectionMap[r.section_id] })));
+    const sectionIds = list.map((s) => s.id);
 
-      const { data: memData } = await supabase
-        .from("section_members")
-        .select("*")
-        .in("section_id", sectionIds)
-        .order("joined_at", { ascending: false });
-      const studentIds2 = [...new Set((memData || []).map((m: any) => m.student_id))];
-      const { data: memStudents } = studentIds2.length
-        ? await supabase.from("profiles").select("user_id, first_name, last_name, email, grade_level").in("user_id", studentIds2)
-        : { data: [] as any[] };
-      const memMap: Record<string, any> = {};
-      (memStudents || []).forEach((s: any) => (memMap[s.user_id] = s));
-      setMembers((memData || []).map((m: any) => ({ ...m, student: memMap[m.student_id], section: sectionMap[m.section_id] })));
-    } else {
-      setRequests([]);
-      setMembers([]);
-    }
+    const [reqRes, memRes, mySubsRes] = await Promise.all([
+      sectionIds.length
+        ? supabase.from("section_join_requests").select("*").in("section_id", sectionIds).order("created_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      sectionIds.length
+        ? supabase.from("section_members").select("*").in("section_id", sectionIds).order("joined_at", { ascending: false })
+        : Promise.resolve({ data: [] as any[] }),
+      supabase.from("section_subjects").select("*").eq("teacher_id", user.id),
+    ]);
+
+    const reqs = (reqRes.data as any[]) || [];
+    const mems = (memRes.data as any[]) || [];
+
+    // hydrate students
+    const allStudentIds = [...new Set([...reqs.map((r) => r.student_id), ...mems.map((m) => m.student_id)])];
+    const { data: students } = allStudentIds.length
+      ? await supabase.from("profiles").select("user_id, first_name, last_name, email, grade_level").in("user_id", allStudentIds)
+      : { data: [] as any[] };
+    const studentMap: Record<string, any> = {};
+    (students || []).forEach((s: any) => (studentMap[s.user_id] = s));
+    const sectionMap: Record<string, any> = {};
+    list.forEach((s) => (sectionMap[s.id] = s));
+
+    setRequests(reqs.map((r) => ({ ...r, student: studentMap[r.student_id], section: sectionMap[r.section_id] })));
+    setMembers(mems.map((m) => ({ ...m, student: studentMap[m.student_id], section: sectionMap[m.section_id] })));
+
+    // My teaching: subjects assigned to me across any section
+    const mySubs = (mySubsRes.data as any[]) || [];
+    const subjectIds = [...new Set(mySubs.map((s) => s.subject_id))];
+    const teachingSectionIds = [...new Set(mySubs.map((s) => s.section_id))];
+    const [{ data: subjectRows }, { data: teachingSections }, { data: schedules }] = await Promise.all([
+      subjectIds.length ? supabase.from("subjects").select("*").in("id", subjectIds) : Promise.resolve({ data: [] as any[] }),
+      teachingSectionIds.length ? supabase.from("sections").select("*").in("id", teachingSectionIds) : Promise.resolve({ data: [] as any[] }),
+      mySubs.length ? supabase.from("class_schedules").select("*").in("section_subject_id", mySubs.map((s) => s.id)) : Promise.resolve({ data: [] as any[] }),
+    ]);
+    const subjMap: Record<string, any> = {};
+    (subjectRows || []).forEach((s: any) => (subjMap[s.id] = s));
+    const secMap: Record<string, any> = {};
+    (teachingSections || []).forEach((s: any) => (secMap[s.id] = s));
+    setMySectionSubjects(mySubs.map((m) => ({ ...m, subject: subjMap[m.subject_id], section: secMap[m.section_id] })));
+    setMySchedules(schedules || []);
+
     setLoading(false);
   };
 
@@ -119,39 +141,22 @@ const TeacherSectionsPage = () => {
     setForm({ name: "", description: "", grade_level: "", school_level: "junior_high_school", color: "from-primary to-primary/70", is_active: true });
     setDialogOpen(true);
   };
-
-  const openEdit = (s: Section) => {
-    setEditing(s);
-    setForm(s);
-    setDialogOpen(true);
-  };
+  const openEdit = (s: Section) => { setEditing(s); setForm(s); setDialogOpen(true); };
 
   const saveSection = async () => {
-    if (!form.name?.trim()) {
-      toast.error("Section name is required");
-      return;
-    }
+    if (!form.name?.trim()) { toast.error("Section name is required"); return; }
     if (editing) {
       const { error } = await supabase.from("sections").update({
-        name: form.name,
-        description: form.description,
-        grade_level: form.grade_level,
-        school_level: form.school_level,
-        cover_image_url: form.cover_image_url,
-        color: form.color,
-        is_active: form.is_active,
+        name: form.name, description: form.description, grade_level: form.grade_level,
+        school_level: form.school_level, cover_image_url: form.cover_image_url, color: form.color, is_active: form.is_active,
       }).eq("id", editing.id);
       if (error) return toast.error(error.message);
       toast.success("Section updated");
     } else {
       const { error } = await supabase.from("sections").insert({
-        teacher_id: user!.id,
-        name: form.name!,
-        description: form.description || null,
-        grade_level: form.grade_level || null,
-        school_level: (form.school_level as any) || null,
-        cover_image_url: form.cover_image_url || null,
-        color: form.color || null,
+        teacher_id: user!.id, name: form.name!, description: form.description || null,
+        grade_level: form.grade_level || null, school_level: (form.school_level as any) || null,
+        cover_image_url: form.cover_image_url || null, color: form.color || null,
       });
       if (error) return toast.error(error.message);
       toast.success("Section created");
@@ -161,7 +166,7 @@ const TeacherSectionsPage = () => {
   };
 
   const deleteSection = async (id: string) => {
-    if (!confirm("Delete this section? Members and requests will be removed.")) return;
+    if (!confirm("Delete this section? Members, requests, subjects and schedules will be removed.")) return;
     const { error } = await supabase.from("sections").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Section deleted");
@@ -194,8 +199,8 @@ const TeacherSectionsPage = () => {
             <ArrowLeft className="h-5 w-5" />
           </Button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-foreground">My Sections</h1>
-            <p className="text-xs text-muted-foreground">Create and manage your advisory sections</p>
+            <h1 className="text-xl font-bold text-foreground">Teacher Dashboard</h1>
+            <p className="text-xs text-muted-foreground">Manage advisory sections and your teaching load</p>
           </div>
           <Button size="sm" className="rounded-xl text-xs font-bold" onClick={openCreate}>
             <Plus className="h-4 w-4 mr-1" /> New Section
@@ -204,7 +209,8 @@ const TeacherSectionsPage = () => {
 
         <div className="flex gap-2 overflow-x-auto scrollbar-hide">
           {[
-            { key: "sections", label: "Sections", icon: School, count: sections.length },
+            { key: "advisory", label: "Advisory", icon: School, count: sections.length },
+            { key: "teaching", label: "My Teaching", icon: Briefcase, count: mySectionSubjects.length },
             { key: "requests", label: "Requests", icon: Clock, count: pendingCount },
             { key: "members", label: "Members", icon: Users, count: members.length },
           ].map((t) => (
@@ -222,7 +228,7 @@ const TeacherSectionsPage = () => {
 
         {loading ? (
           <div className="text-center py-10 text-sm text-muted-foreground">Loading...</div>
-        ) : tab === "sections" ? (
+        ) : tab === "advisory" ? (
           sections.length === 0 ? (
             <EmptyState icon={<School className="h-10 w-10" />} title="No sections yet" desc="Create your first advisory section to get started" />
           ) : (
@@ -242,7 +248,10 @@ const TeacherSectionsPage = () => {
                   </div>
                   <div className="p-3 space-y-2">
                     {s.description && <p className="text-xs text-muted-foreground line-clamp-2">{s.description}</p>}
-                    <div className="flex gap-2">
+                    <div className="flex flex-wrap gap-2">
+                      <Button size="sm" className="rounded-lg text-[11px] h-8" onClick={() => setCurOpen(s)}>
+                        <ListChecks className="h-3 w-3 mr-1" /> Curriculum
+                      </Button>
                       <Button size="sm" variant="outline" className="rounded-lg text-[11px] h-8" onClick={() => openEdit(s)}>
                         <Pencil className="h-3 w-3 mr-1" /> Edit
                       </Button>
@@ -255,6 +264,40 @@ const TeacherSectionsPage = () => {
               ))}
             </div>
           )
+        ) : tab === "teaching" ? (
+          mySectionSubjects.length === 0 ? (
+            <EmptyState icon={<Briefcase className="h-10 w-10" />} title="No teaching assignments" desc="Section advisers will add you to their sections for the subjects an admin assigned to you." />
+          ) : (
+            <div className="space-y-3">
+              {mySectionSubjects.map((ss) => {
+                const slots = mySchedules.filter((sc) => sc.section_subject_id === ss.id).sort((a, b) => a.day_of_week - b.day_of_week || (a.start_time > b.start_time ? 1 : -1));
+                return (
+                  <div key={ss.id} className="bg-card rounded-2xl p-4 card-shadow border border-border/50">
+                    <div className="flex items-start justify-between mb-2">
+                      <div>
+                        <h3 className="text-sm font-bold text-foreground">{ss.subject?.name}</h3>
+                        <p className="text-[11px] text-muted-foreground">Section: {ss.section?.name}</p>
+                      </div>
+                      <Badge variant="outline" className="text-[9px]">{ss.subject?.grade_level}</Badge>
+                    </div>
+                    {slots.length === 0 ? (
+                      <p className="text-[11px] text-muted-foreground italic">No schedule yet</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {slots.map((sl) => (
+                          <span key={sl.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-full">
+                            <CalendarClock className="h-2.5 w-2.5" />
+                            {DAYS[sl.day_of_week]} {sl.start_time?.slice(0, 5)}–{sl.end_time?.slice(0, 5)}
+                            {sl.room && ` · ${sl.room}`}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )
         ) : tab === "requests" ? (
           requests.length === 0 ? (
             <EmptyState icon={<Clock className="h-10 w-10" />} title="No requests" desc="Student join requests will appear here" />
@@ -264,17 +307,12 @@ const TeacherSectionsPage = () => {
                 <div key={r.id} className="bg-card rounded-2xl p-4 card-shadow border border-border/50">
                   <div className="flex items-start justify-between mb-2">
                     <div className="flex-1 min-w-0">
-                      <h3 className="text-sm font-bold text-foreground">
-                        {r.student ? `${r.student.last_name}, ${r.student.first_name}` : "Student"}
-                      </h3>
+                      <h3 className="text-sm font-bold text-foreground">{r.student ? `${r.student.last_name}, ${r.student.first_name}` : "Student"}</h3>
                       <p className="text-[11px] text-muted-foreground">{r.student?.email}</p>
                       <p className="text-[11px] text-muted-foreground">Grade: {r.student?.grade_level || "—"}</p>
                       <p className="text-[11px] text-primary font-semibold mt-1">→ {r.section?.name}</p>
                     </div>
-                    <Badge
-                      variant={r.status === "pending" ? "secondary" : r.status === "approved" ? "default" : "destructive"}
-                      className="text-[9px]"
-                    >
+                    <Badge variant={r.status === "pending" ? "secondary" : r.status === "approved" ? "default" : "destructive"} className="text-[9px]">
                       {r.status}
                     </Badge>
                   </div>
@@ -299,12 +337,8 @@ const TeacherSectionsPage = () => {
             {members.map((m) => (
               <div key={m.id} className="bg-card rounded-xl p-3 card-shadow border border-border/50 flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-bold text-foreground">
-                    {m.student ? `${m.student.last_name}, ${m.student.first_name}` : "Student"}
-                  </p>
-                  <p className="text-[11px] text-muted-foreground">
-                    {m.student?.email} · {m.section?.name}
-                  </p>
+                  <p className="text-sm font-bold text-foreground">{m.student ? `${m.student.last_name}, ${m.student.first_name}` : "Student"}</p>
+                  <p className="text-[11px] text-muted-foreground">{m.student?.email} · {m.section?.name}</p>
                 </div>
                 <Button size="sm" variant="ghost" className="rounded-lg h-8 text-destructive hover:text-destructive" onClick={() => removeMember(m.id)}>
                   <Trash2 className="h-3.5 w-3.5" />
@@ -315,11 +349,10 @@ const TeacherSectionsPage = () => {
         )}
       </div>
 
+      {/* Section Create/Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
         <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{editing ? "Edit Section" : "Create Section"}</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>{editing ? "Edit Section" : "Create Section"}</DialogTitle></DialogHeader>
           <div className="space-y-3">
             <div>
               <Label className="text-xs">Section Name *</Label>
@@ -364,6 +397,13 @@ const TeacherSectionsPage = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Curriculum (Subjects + Schedule + Announcements) */}
+      <SectionCurriculumDialog
+        section={curOpen}
+        onClose={() => setCurOpen(null)}
+        onChanged={fetchAll}
+      />
     </div>
   );
 };
@@ -375,5 +415,267 @@ const EmptyState = ({ icon, title, desc }: { icon: React.ReactNode; title: strin
     <p className="text-xs text-muted-foreground mt-1">{desc}</p>
   </div>
 );
+
+// =================== Curriculum Dialog ===================
+type Teacher = { user_id: string; first_name: string; last_name: string; email: string };
+type Subject = { id: string; name: string; grade_level: string | null };
+
+const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Section | null; onClose: () => void; onChanged: () => void }) => {
+  const { user } = useAuth();
+  const [view, setView] = useState<"subjects" | "announcements">("subjects");
+  const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [allSubjects, setAllSubjects] = useState<Subject[]>([]);
+  const [teacherSubjects, setTeacherSubjects] = useState<any[]>([]);
+  const [sectionSubjects, setSectionSubjects] = useState<any[]>([]);
+  const [schedules, setSchedules] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+
+  // Add subject form
+  const [pickTeacher, setPickTeacher] = useState("");
+  const [pickSubject, setPickSubject] = useState("");
+
+  // Schedule add
+  const [schedFor, setSchedFor] = useState<string | null>(null);
+  const [day, setDay] = useState("1");
+  const [startT, setStartT] = useState("08:00");
+  const [endT, setEndT] = useState("09:00");
+  const [room, setRoom] = useState("");
+
+  // Announcement compose
+  const [annTitle, setAnnTitle] = useState("");
+  const [annText, setAnnText] = useState("");
+
+  useEffect(() => {
+    if (!section) return;
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [section?.id]);
+
+  const load = async () => {
+    if (!section) return;
+    const [t, s, ts, ss, ann] = await Promise.all([
+      supabase.from("profiles").select("user_id, first_name, last_name, email").eq("user_type", "teacher").eq("approval_status", "approved"),
+      supabase.from("subjects").select("id, name, grade_level").eq("is_active", true).order("sort_order"),
+      supabase.from("teacher_subjects").select("*"),
+      supabase.from("section_subjects").select("*").eq("section_id", section.id),
+      supabase.from("announcements").select("*").eq("section_id", section.id).eq("scope", "section").order("created_at", { ascending: false }),
+    ]);
+    setTeachers((t.data as Teacher[]) || []);
+    setAllSubjects((s.data as Subject[]) || []);
+    setTeacherSubjects(ts.data || []);
+    setSectionSubjects(ss.data || []);
+    setAnnouncements(ann.data || []);
+
+    const ssIds = (ss.data || []).map((x: any) => x.id);
+    if (ssIds.length) {
+      const { data: sched } = await supabase.from("class_schedules").select("*").in("section_subject_id", ssIds);
+      setSchedules(sched || []);
+    } else setSchedules([]);
+  };
+
+  const availableSubjectsForTeacher = useMemo(() => {
+    if (!pickTeacher) return [];
+    const subjIds = teacherSubjects.filter((ts) => ts.teacher_id === pickTeacher).map((ts) => ts.subject_id);
+    return allSubjects.filter((s) => subjIds.includes(s.id) && !sectionSubjects.some((ss) => ss.subject_id === s.id));
+  }, [pickTeacher, teacherSubjects, allSubjects, sectionSubjects]);
+
+  const addSectionSubject = async () => {
+    if (!section || !pickTeacher || !pickSubject) { toast.error("Pick teacher and subject"); return; }
+    const { error } = await supabase.from("section_subjects").insert({
+      section_id: section.id, teacher_id: pickTeacher, subject_id: pickSubject,
+    });
+    if (error) return toast.error(error.message.includes("duplicate") ? "Subject already added" : error.message);
+    toast.success("Subject added to section");
+    setPickTeacher(""); setPickSubject("");
+    load(); onChanged();
+  };
+
+  const removeSectionSubject = async (id: string) => {
+    if (!confirm("Remove this subject and its schedule from the section?")) return;
+    const { error } = await supabase.from("section_subjects").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    toast.success("Removed");
+    load(); onChanged();
+  };
+
+  const addSchedule = async (sectionSubjectId: string) => {
+    if (startT >= endT) { toast.error("End time must be after start time"); return; }
+    const { error } = await supabase.from("class_schedules").insert({
+      section_subject_id: sectionSubjectId,
+      day_of_week: parseInt(day), start_time: startT, end_time: endT, room: room || null,
+    });
+    if (error) return toast.error(error.message);
+    toast.success("Schedule added");
+    setSchedFor(null); setRoom("");
+    load(); onChanged();
+  };
+
+  const deleteSchedule = async (id: string) => {
+    const { error } = await supabase.from("class_schedules").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    load(); onChanged();
+  };
+
+  const postAnnouncement = async () => {
+    if (!section || !user) return;
+    if (!annTitle.trim()) { toast.error("Title required"); return; }
+    const { error } = await supabase.from("announcements").insert({
+      title: annTitle, preview_text: annText.slice(0, 100), full_content: annText,
+      from_name: "Section Adviser", scope: "section", section_id: section.id,
+      created_by: user.id, is_new: true, is_active: true,
+    });
+    if (error) return toast.error(error.message);
+    toast.success("Announcement posted");
+    setAnnTitle(""); setAnnText("");
+    load();
+  };
+
+  const deleteAnnouncement = async (id: string) => {
+    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    load();
+  };
+
+  if (!section) return null;
+
+  return (
+    <Dialog open={!!section} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl">
+        <DialogHeader>
+          <DialogTitle className="text-base">{section.name} — Curriculum</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-2 mb-2">
+          {[
+            { key: "subjects", label: "Subjects & Schedule", icon: BookOpen },
+            { key: "announcements", label: "Announcements", icon: Megaphone },
+          ].map((v) => (
+            <button
+              key={v.key}
+              onClick={() => setView(v.key as any)}
+              className={`px-3 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 transition-all ${
+                view === v.key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+              }`}
+            >
+              <v.icon className="h-3 w-3" /> {v.label}
+            </button>
+          ))}
+        </div>
+
+        {view === "subjects" && (
+          <div className="space-y-3">
+            {/* Add subject */}
+            <div className="bg-muted/30 rounded-xl p-3 space-y-2">
+              <p className="text-[11px] font-bold text-foreground">Add subject (only teachers admin assigned)</p>
+              <div className="grid grid-cols-2 gap-2">
+                <Select value={pickTeacher} onValueChange={(v) => { setPickTeacher(v); setPickSubject(""); }}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Teacher" /></SelectTrigger>
+                  <SelectContent>
+                    {teachers.map((t) => <SelectItem key={t.user_id} value={t.user_id}>{t.last_name}, {t.first_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={pickSubject} onValueChange={setPickSubject} disabled={!pickTeacher}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={pickTeacher ? (availableSubjectsForTeacher.length ? "Subject" : "No assigned subjects") : "Pick teacher first"} /></SelectTrigger>
+                  <SelectContent>
+                    {availableSubjectsForTeacher.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <Button size="sm" className="w-full rounded-lg text-xs h-8" onClick={addSectionSubject}>
+                <Plus className="h-3 w-3 mr-1" /> Add Subject
+              </Button>
+            </div>
+
+            {/* Subject list with schedules */}
+            {sectionSubjects.length === 0 ? (
+              <p className="text-xs text-center text-muted-foreground py-4">No subjects added yet.</p>
+            ) : (
+              sectionSubjects.map((ss) => {
+                const subj = allSubjects.find((s) => s.id === ss.subject_id);
+                const teach = teachers.find((t) => t.user_id === ss.teacher_id);
+                const slots = schedules.filter((sc) => sc.section_subject_id === ss.id).sort((a, b) => a.day_of_week - b.day_of_week);
+                return (
+                  <div key={ss.id} className="bg-card border border-border rounded-xl p-3">
+                    <div className="flex items-start justify-between mb-1.5">
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{subj?.name || "Subject"}</p>
+                        <p className="text-[10px] text-muted-foreground">{teach ? `${teach.first_name} ${teach.last_name}` : "Teacher"}</p>
+                      </div>
+                      <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeSectionSubject(ss.id)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                    <div className="flex flex-wrap gap-1 mb-2">
+                      {slots.length === 0 ? (
+                        <span className="text-[10px] text-muted-foreground italic">No schedule</span>
+                      ) : slots.map((sl) => (
+                        <span key={sl.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+                          {DAYS[sl.day_of_week]} {sl.start_time?.slice(0, 5)}–{sl.end_time?.slice(0, 5)}{sl.room && ` · ${sl.room}`}
+                          <button onClick={() => deleteSchedule(sl.id)} className="hover:bg-primary/20 rounded-full p-0.5">
+                            <X className="h-2 w-2" />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                    {schedFor === ss.id ? (
+                      <div className="grid grid-cols-4 gap-1 items-end">
+                        <Select value={day} onValueChange={setDay}>
+                          <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Input type="time" value={startT} onChange={(e) => setStartT(e.target.value)} className="h-7 text-[10px]" />
+                        <Input type="time" value={endT} onChange={(e) => setEndT(e.target.value)} className="h-7 text-[10px]" />
+                        <Input placeholder="Room" value={room} onChange={(e) => setRoom(e.target.value)} className="h-7 text-[10px]" />
+                        <div className="col-span-4 flex gap-1">
+                          <Button size="sm" className="flex-1 h-7 text-[10px] rounded-lg" onClick={() => addSchedule(ss.id)}>
+                            <Save className="h-2.5 w-2.5 mr-1" /> Save slot
+                          </Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => setSchedFor(null)}>Cancel</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" className="rounded-lg h-7 text-[10px] w-full" onClick={() => setSchedFor(ss.id)}>
+                        <CalendarClock className="h-3 w-3 mr-1" /> Add schedule slot
+                      </Button>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {view === "announcements" && (
+          <div className="space-y-3">
+            <div className="bg-muted/30 rounded-xl p-3 space-y-2">
+              <Input placeholder="Title" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} className="h-8 text-xs" />
+              <Textarea placeholder="Message to your section…" value={annText} onChange={(e) => setAnnText(e.target.value)} rows={3} className="text-xs" />
+              <Button size="sm" className="w-full rounded-lg text-xs h-8" onClick={postAnnouncement}>
+                <Megaphone className="h-3 w-3 mr-1" /> Post to section
+              </Button>
+            </div>
+            {announcements.length === 0 ? (
+              <p className="text-xs text-center text-muted-foreground py-4">No section announcements yet.</p>
+            ) : announcements.map((a) => (
+              <div key={a.id} className="bg-card border border-border rounded-xl p-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-bold text-foreground">{a.title}</p>
+                    <p className="text-[10px] text-muted-foreground line-clamp-2 mt-1">{a.full_content || a.preview_text}</p>
+                  </div>
+                  <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => deleteAnnouncement(a.id)}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+};
 
 export default TeacherSectionsPage;

@@ -120,7 +120,8 @@ const SectionsList = () => {
           return (
             <div
               key={s.id}
-              className="min-w-[260px] max-w-[260px] bg-card rounded-2xl border border-border/60 overflow-hidden card-shadow hover:shadow-lg transition-all snap-start flex-shrink-0 group"
+              onClick={() => navigate(`/section/${s.id}`)}
+              className="min-w-[260px] max-w-[260px] bg-card rounded-2xl border border-border/60 overflow-hidden card-shadow hover:shadow-lg transition-all snap-start flex-shrink-0 group cursor-pointer"
             >
               {/* Cover */}
               <div className={`relative h-24 bg-gradient-to-br ${gradient} overflow-hidden`}>
@@ -161,7 +162,7 @@ const SectionsList = () => {
                   </button>
                 ) : (
                   <button
-                    onClick={() => handleRequest(s.id)}
+                    onClick={(e) => { e.stopPropagation(); handleRequest(s.id); }}
                     className="w-full bg-gradient-to-r from-primary to-primary/80 text-primary-foreground rounded-lg py-1.5 text-[11px] font-bold flex items-center justify-center gap-1 active:scale-95 transition-transform shadow-sm hover:shadow-md"
                   >
                     <Sparkles className="h-3 w-3" /> Request to Join
