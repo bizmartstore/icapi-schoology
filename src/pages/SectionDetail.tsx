@@ -148,7 +148,11 @@ const SectionDetail = () => {
             ) : (
               <div className="space-y-2">
                 {subjects.map((ss: any) => (
-                  <div key={ss.id} className="bg-card rounded-2xl p-3 card-shadow">
+                  <div
+                    key={ss.id}
+                    onClick={() => isMember && navigate(`/learn/${ss.id}`)}
+                    className={`bg-card rounded-2xl p-3 card-shadow ${isMember ? "cursor-pointer hover:shadow-lg active:scale-[0.99] transition-all" : ""}`}
+                  >
                     <div className="flex items-start justify-between mb-1.5">
                       <div className="flex items-center gap-2">
                         <div className={`h-9 w-9 rounded-lg ${ss.subject?.color || "bg-primary"} flex items-center justify-center`}>

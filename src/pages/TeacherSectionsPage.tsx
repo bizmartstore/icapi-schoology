@@ -268,34 +268,59 @@ const TeacherSectionsPage = () => {
           mySectionSubjects.length === 0 ? (
             <EmptyState icon={<Briefcase className="h-10 w-10" />} title="No teaching assignments" desc="Section advisers will add you to their sections for the subjects an admin assigned to you." />
           ) : (
-            <div className="space-y-3">
-              {mySectionSubjects.map((ss) => {
-                const slots = mySchedules.filter((sc) => sc.section_subject_id === ss.id).sort((a, b) => a.day_of_week - b.day_of_week || (a.start_time > b.start_time ? 1 : -1));
-                return (
-                  <div key={ss.id} className="bg-card rounded-2xl p-4 card-shadow border border-border/50">
-                    <div className="flex items-start justify-between mb-2">
-                      <div>
-                        <h3 className="text-sm font-bold text-foreground">{ss.subject?.name}</h3>
-                        <p className="text-[11px] text-muted-foreground">Section: {ss.section?.name}</p>
-                      </div>
-                      <Badge variant="outline" className="text-[9px]">{ss.subject?.grade_level}</Badge>
-                    </div>
-                    {slots.length === 0 ? (
-                      <p className="text-[11px] text-muted-foreground italic">No schedule yet</p>
-                    ) : (
-                      <div className="flex flex-wrap gap-1.5 mt-2">
-                        {slots.map((sl) => (
-                          <span key={sl.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-bold px-2 py-1 rounded-full">
-                            <CalendarClock className="h-2.5 w-2.5" />
-                            {DAYS[sl.day_of_week]} {sl.start_time?.slice(0, 5)}–{sl.end_time?.slice(0, 5)}
-                            {sl.room && ` · ${sl.room}`}
-                          </span>
-                        ))}
-                      </div>
-                    )}
+            <div className="space-y-4">
+              {/* Group by section */}
+              {Object.entries(
+                mySectionSubjects.reduce((acc: Record<string, { section: any; items: any[] }>, ss) => {
+                  const k = ss.section_id;
+                  if (!acc[k]) acc[k] = { section: ss.section, items: [] };
+                  acc[k].items.push(ss);
+                  return acc;
+                }, {})
+              ).map(([sid, group]) => (
+                <div key={sid} className="space-y-2">
+                  <div className={`bg-gradient-to-br ${group.section?.color || "from-primary to-primary/70"} rounded-2xl p-3 text-primary-foreground`}>
+                    <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">Section</p>
+                    <h3 className="text-base font-extrabold">{group.section?.name}</h3>
+                    <p className="text-[10px] opacity-90">{group.items.length} subject{group.items.length === 1 ? "" : "s"} assigned to you</p>
                   </div>
-                );
-              })}
+                  <div className="grid sm:grid-cols-2 gap-2">
+                    {group.items.map((ss) => {
+                      const slots = mySchedules.filter((sc) => sc.section_subject_id === ss.id).sort((a, b) => a.day_of_week - b.day_of_week || (a.start_time > b.start_time ? 1 : -1));
+                      return (
+                        <button
+                          key={ss.id}
+                          onClick={() => navigate(`/teach/${ss.id}`)}
+                          className="bg-card rounded-2xl p-3 card-shadow border border-border/50 text-left hover:shadow-lg active:scale-[0.98] transition-all"
+                        >
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <div className={`h-9 w-9 rounded-lg ${ss.subject?.color || "bg-primary"} flex items-center justify-center`}>
+                              <BookOpen className="h-4 w-4 text-primary-foreground" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-sm font-extrabold text-foreground line-clamp-1">{ss.subject?.name}</h4>
+                              <p className="text-[10px] text-muted-foreground">Tap to manage</p>
+                            </div>
+                          </div>
+                          {slots.length === 0 ? (
+                            <p className="text-[10px] text-muted-foreground italic">No schedule yet</p>
+                          ) : (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {slots.slice(0, 3).map((sl) => (
+                                <span key={sl.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[9px] font-bold px-1.5 py-0.5 rounded-full">
+                                  <CalendarClock className="h-2 w-2" />
+                                  {DAYS[sl.day_of_week]} {sl.start_time?.slice(0, 5)}
+                                </span>
+                              ))}
+                              {slots.length > 3 && <span className="text-[9px] text-muted-foreground">+{slots.length - 3}</span>}
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
             </div>
           )
         ) : tab === "requests" ? (
