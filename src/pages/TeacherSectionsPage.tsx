@@ -270,14 +270,14 @@ const TeacherSectionsPage = () => {
           ) : (
             <div className="space-y-4">
               {/* Group by section */}
-              {Object.entries(
+              {(Object.entries(
                 mySectionSubjects.reduce((acc: Record<string, { section: any; items: any[] }>, ss) => {
                   const k = ss.section_id;
                   if (!acc[k]) acc[k] = { section: ss.section, items: [] };
                   acc[k].items.push(ss);
                   return acc;
                 }, {})
-              ).map(([sid, group]) => (
+              ) as [string, { section: any; items: any[] }][]).map(([sid, group]) => (
                 <div key={sid} className="space-y-2">
                   <div className={`bg-gradient-to-br ${group.section?.color || "from-primary to-primary/70"} rounded-2xl p-3 text-primary-foreground`}>
                     <p className="text-[10px] font-bold uppercase tracking-wide opacity-80">Section</p>
