@@ -17,6 +17,8 @@ import AdminDashboard from "./pages/AdminDashboard.tsx";
 import TeacherApprovalPage from "./pages/TeacherApprovalPage.tsx";
 import TeacherSectionsPage from "./pages/TeacherSectionsPage.tsx";
 import SectionDetail from "./pages/SectionDetail.tsx";
+import TeachSubjectDashboard from "./pages/TeachSubjectDashboard.tsx";
+import StudentSubjectView from "./pages/StudentSubjectView.tsx";
 
 const queryClient = new QueryClient();
 
@@ -75,6 +77,8 @@ const App = () => (
             <Route path="/approvals" element={<ProtectedRoute><TeacherApprovalPage /></ProtectedRoute>} />
             <Route path="/sections" element={<ProtectedRoute><TeacherSectionsPage /></ProtectedRoute>} />
             <Route path="/section/:id" element={<SectionDetail />} />
+            <Route path="/teach/:ssId" element={<ProtectedRoute><TeachSubjectDashboard /></ProtectedRoute>} />
+            <Route path="/learn/:ssId" element={<ProtectedRoute><StudentSubjectView /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </AuthProvider>

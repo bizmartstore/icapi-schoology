@@ -1,7 +1,7 @@
 import LMSHeader from "@/components/lms/LMSHeader";
 import BannerCarousel from "@/components/lms/BannerCarousel";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
-import SubjectCards from "@/components/lms/SubjectCards";
+import MySubjectsBySection from "@/components/lms/MySubjectsBySection";
 import SectionsList from "@/components/lms/SectionsList";
 import UpcomingTasks from "@/components/lms/UpcomingTasks";
 import Announcements from "@/components/lms/Announcements";
@@ -20,6 +20,8 @@ const Index = () => {
   const isLoggedIn = !!user && profile?.approval_status === "approved";
   const isStudent = roles.includes("student");
   const showJoinNotice = isLoggedIn && isStudent && !isMemberOfAny;
+  // My Subjects shows ONLY when student is in at least one section.
+  const showMySubjects = isLoggedIn && isStudent && isMemberOfAny;
 
   const greeting = () => {
     const hour = new Date().getHours();
@@ -117,13 +119,15 @@ const Index = () => {
           </div>
         )}
 
-        {/* Flash Deal style: Subjects */}
-        <div className="bg-card mt-2 border-y border-border">
-          <div className="px-4 pt-3">
-            <SectionHeader icon={<Flame className="h-3.5 w-3.5 text-primary" />} title="My Subjects" actionLabel="See All" onAction={() => navigate("/subjects")} />
+        {/* My Subjects — only when student joined at least one section */}
+        {showMySubjects && (
+          <div className="bg-card mt-2 border-y border-border">
+            <div className="px-4 pt-3">
+              <SectionHeader icon={<Flame className="h-3.5 w-3.5 text-primary" />} title="My Subjects" />
+            </div>
+            <MySubjectsBySection />
           </div>
-          <SubjectCards />
-        </div>
+        )}
 
         {/* Sections (replaces Continue Learning) */}
         <div className="bg-card mt-2 border-y border-border">
