@@ -455,10 +455,6 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
   const [schedules, setSchedules] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  // Add subject form
-  const [pickTeacher, setPickTeacher] = useState("");
-  const [pickSubject, setPickSubject] = useState("");
-
   // Schedule add
   const [schedFor, setSchedFor] = useState<string | null>(null);
   const [day, setDay] = useState("1");
@@ -498,20 +494,38 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
     } else setSchedules([]);
   };
 
-  const availableSubjectsForTeacher = useMemo(() => {
-    if (!pickTeacher) return [];
-    const subjIds = teacherSubjects.filter((ts) => ts.teacher_id === pickTeacher).map((ts) => ts.subject_id);
-    return allSubjects.filter((s) => subjIds.includes(s.id) && !sectionSubjects.some((ss) => ss.subject_id === s.id));
-  }, [pickTeacher, teacherSubjects, allSubjects, sectionSubjects]);
-
-  const addSectionSubject = async () => {
-    if (!section || !pickTeacher || !pickSubject) { toast.error("Pick teacher and subject"); return; }
-    const { error } = await supabase.from("section_subjects").insert({
-      section_id: section.id, teacher_id: pickTeacher, subject_id: pickSubject,
+  // Subjects matching this section's grade level (auto-populated from curriculum)
+  const curriculumSubjects = useMemo(() => {
+    if (!section) return [];
+    const gl = (section.grade_level || "").trim().toLowerCase();
+    if (!gl) return allSubjects;
+    return allSubjects.filter((s) => {
+      const sgl = (s.grade_level || "").trim().toLowerCase();
+      return !sgl || sgl === gl;
     });
-    if (error) return toast.error(error.message.includes("duplicate") ? "Subject already added" : error.message);
-    toast.success("Subject added to section");
-    setPickTeacher(""); setPickSubject("");
+  }, [section, allSubjects]);
+
+  // Teachers admin-assigned to a given subject
+  const teachersForSubject = (subjectId: string): Teacher[] => {
+    const ids = teacherSubjects.filter((ts) => ts.subject_id === subjectId).map((ts) => ts.teacher_id);
+    return teachers.filter((t) => ids.includes(t.user_id));
+  };
+
+  const assignTeacherToSubject = async (subjectId: string, teacherId: string) => {
+    if (!section) return;
+    const existing = sectionSubjects.find((x) => x.subject_id === subjectId);
+    if (existing) {
+      if (existing.teacher_id === teacherId) return;
+      const { error } = await supabase.from("section_subjects").update({ teacher_id: teacherId }).eq("id", existing.id);
+      if (error) return toast.error(error.message);
+      toast.success("Teacher updated");
+    } else {
+      const { error } = await supabase.from("section_subjects").insert({
+        section_id: section.id, subject_id: subjectId, teacher_id: teacherId,
+      });
+      if (error) return toast.error(error.message);
+      toast.success("Teacher assigned");
+    }
     load(); onChanged();
   };
 
