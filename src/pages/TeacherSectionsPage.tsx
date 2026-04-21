@@ -469,6 +469,12 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
   useEffect(() => {
     if (!section) return;
     load();
+    const ch = supabase
+      .channel(`section-curriculum-${section.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "teacher_subjects" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects", filter: `section_id=eq.${section.id}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section?.id]);
 
