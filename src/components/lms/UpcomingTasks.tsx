@@ -1,216 +1,274 @@
 import { useEffect, useState } from "react";
-import { FileText, Clock, ClipboardCheck, PenLine, Flame, Lock, Check, CheckCircle2 } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter,
-} from "@/components/ui/dialog";
+import { useNavigate } from "react-router-dom";
+import { ClipboardCheck, PenLine, Flame, Lock, CheckCircle2, CalendarClock, ChevronRight, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
-import { toast } from "sonner";
 
-type Task = {
+type Item = {
   id: string;
+  kind: "activity" | "quiz";
   title: string;
-  subject_name: string | null;
+  subject_name: string;
+  section_name: string;
+  color: string;
   due_date: string | null;
-  task_type: string | null;
-  is_urgent: boolean | null;
+  ss_id: string;
+  done?: boolean;
 };
 
-const typeIcon: Record<string, React.ReactNode> = {
-  Quiz: <ClipboardCheck className="h-5 w-5" />,
-  Assignment: <PenLine className="h-5 w-5" />,
+const formatDue = (iso: string | null) => {
+  if (!iso) return "No due date";
+  const d = new Date(iso);
+  const now = new Date();
+  const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+  if (diff < 0) return `Overdue · ${d.toLocaleDateString()}`;
+  if (diff === 0) return "Due today";
+  if (diff === 1) return "Due tomorrow";
+  if (diff <= 7) return `Due in ${diff} days`;
+  return `Due ${d.toLocaleDateString()}`;
+};
+
+const isUrgent = (iso: string | null) => {
+  if (!iso) return false;
+  const diff = (new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
+  return diff <= 2;
 };
 
 const UpcomingTasks = () => {
+  const navigate = useNavigate();
   const { user, profile, roles } = useAuth();
-  const { isMemberOfAny } = useSectionMembership();
+  const { memberSectionIds, isMemberOfAny } = useSectionMembership();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
   const isStudent = roles.includes("student");
-  const gated = isLoggedIn && isStudent && !isMemberOfAny;
+  const gated = isStudent && (!isLoggedIn || !isMemberOfAny);
 
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
-  const [open, setOpen] = useState<Task | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Load tasks + realtime
+  const load = async () => {
+    if (!user || !isMemberOfAny) {
+      setItems([]);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+
+    // 1. Get all section_subjects in joined sections
+    const { data: ssRows } = await supabase
+      .from("section_subjects")
+      .select("id, subject_id, section_id")
+      .in("section_id", memberSectionIds);
+    const ss = ssRows || [];
+    if (ss.length === 0) { setItems([]); setLoading(false); return; }
+
+    const ssIds = ss.map((s) => s.id);
+    const subjectIds = [...new Set(ss.map((s) => s.subject_id))];
+    const sectionIds = [...new Set(ss.map((s) => s.section_id))];
+
+    // 2. Fetch activities, quizzes, subjects, sections, attempts in parallel
+    const [{ data: actRows }, { data: quizRows }, { data: subjRows }, { data: secRows }, { data: attempts }] = await Promise.all([
+      supabase.from("activities").select("id, title, due_date, section_subject_id, is_active").eq("is_active", true).in("section_subject_id", ssIds),
+      supabase.from("quizzes").select("id, title, section_subject_id, is_published, created_at").eq("is_published", true).in("section_subject_id", ssIds),
+      supabase.from("subjects").select("id, name, color").in("id", subjectIds),
+      supabase.from("sections").select("id, name").in("id", sectionIds),
+      supabase.from("quiz_attempts").select("quiz_id").eq("student_id", user.id),
+    ]);
+
+    const ssMap: Record<string, any> = {};
+    ss.forEach((x) => (ssMap[x.id] = x));
+    const subjMap: Record<string, any> = {};
+    (subjRows || []).forEach((x: any) => (subjMap[x.id] = x));
+    const secMap: Record<string, any> = {};
+    (secRows || []).forEach((x: any) => (secMap[x.id] = x));
+    const attemptedQuizIds = new Set((attempts || []).map((a: any) => a.quiz_id));
+
+    const list: Item[] = [];
+
+    (actRows || []).forEach((a: any) => {
+      const link = ssMap[a.section_subject_id];
+      if (!link) return;
+      const subj = subjMap[link.subject_id];
+      const sec = secMap[link.section_id];
+      list.push({
+        id: `a-${a.id}`,
+        kind: "activity",
+        title: a.title,
+        subject_name: subj?.name || "Subject",
+        section_name: sec?.name || "Section",
+        color: subj?.color || "bg-primary",
+        due_date: a.due_date,
+        ss_id: link.id,
+      });
+    });
+
+    (quizRows || []).forEach((q: any) => {
+      const link = ssMap[q.section_subject_id];
+      if (!link) return;
+      const subj = subjMap[link.subject_id];
+      const sec = secMap[link.section_id];
+      list.push({
+        id: `q-${q.id}`,
+        kind: "quiz",
+        title: q.title,
+        subject_name: subj?.name || "Subject",
+        section_name: sec?.name || "Section",
+        color: subj?.color || "bg-primary",
+        due_date: null,
+        ss_id: link.id,
+        done: attemptedQuizIds.has(q.id),
+      });
+    });
+
+    // Sort: not-done first, then by due date asc (nulls last), then by kind
+    list.sort((a, b) => {
+      if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+      const ad = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+      const bd = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+      return ad - bd;
+    });
+
+    setItems(list.slice(0, 8));
+    setLoading(false);
+  };
+
   useEffect(() => {
-    const load = async () => {
-      const { data } = await supabase
-        .from("tasks").select("*").eq("is_active", true)
-        .order("created_at", { ascending: false });
-      setTasks((data as Task[]) || []);
-    };
     load();
+    if (!user) return;
     const ch = supabase
-      .channel("tasks-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "tasks" }, load)
+      .channel("upcoming-rt")
+      .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quizzes" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "quiz_attempts", filter: `student_id=eq.${user.id}` }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, memberSectionIds.join(",")]);
 
-  // Load completions per user + realtime
-  useEffect(() => {
-    if (!user) { setCompleted(new Set()); return; }
-    const load = async () => {
-      const { data } = await supabase
-        .from("task_completions").select("task_id").eq("user_id", user.id);
-      setCompleted(new Set((data || []).map((r: any) => r.task_id)));
-    };
-    load();
-    const ch = supabase
-      .channel(`completions-${user.id}`)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "task_completions", filter: `user_id=eq.${user.id}` },
-        load
-      ).subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user?.id]);
-
-  const handleClick = (task: Task) => {
-    if (gated) {
-      toast.info("Join a section first to open tasks");
-      return;
-    }
-    if (!isLoggedIn) {
-      toast.info("Please login to open tasks");
-      return;
-    }
-    setOpen(task);
-  };
-
-  const toggleComplete = async (task: Task) => {
-    if (!user) return;
-    const isDone = completed.has(task.id);
-    if (isDone) {
-      const { error } = await supabase
-        .from("task_completions").delete().eq("task_id", task.id).eq("user_id", user.id);
-      if (error) { toast.error("Failed to update"); return; }
-      toast.success("Marked as not done");
-    } else {
-      const { error } = await supabase
-        .from("task_completions").insert({ task_id: task.id, user_id: user.id });
-      if (error) { toast.error("Failed to update"); return; }
-      toast.success("Task completed! 🎉");
-    }
-  };
-
-  if (tasks.length === 0) {
+  if (gated) {
     return (
       <div className="px-4 pb-3">
-        <div className="rounded-xl border border-dashed border-border bg-muted/30 p-4 text-center">
-          <p className="text-[11px] text-muted-foreground">No upcoming tasks yet.</p>
+        <div className="rounded-2xl border border-primary/30 bg-gradient-to-br from-primary/10 via-accent/5 to-card p-4 flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-primary/15 flex items-center justify-center flex-shrink-0">
+            <Lock className="h-5 w-5 text-primary" />
+          </div>
+          <div className="flex-1">
+            <p className="text-[12px] font-bold text-foreground">Join a section to see your tasks</p>
+            <p className="text-[10px] text-muted-foreground mt-0.5">
+              Activities and quizzes from your teachers will appear here automatically.
+            </p>
+          </div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className="px-4 pb-3">
-      {gated && (
-        <div className="mb-2 flex items-center gap-2 rounded-xl border border-primary/30 bg-primary/5 p-2.5">
-          <Lock className="h-3.5 w-3.5 text-primary flex-shrink-0" />
-          <p className="text-[11px] text-foreground font-medium leading-tight">
-            Join a section to open and complete tasks.
+  if (loading) {
+    return (
+      <div className="px-4 pb-3 space-y-2">
+        {[0, 1].map((i) => (
+          <div key={i} className="h-16 rounded-2xl bg-muted/40 animate-pulse" />
+        ))}
+      </div>
+    );
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="px-4 pb-3">
+        <div className="rounded-2xl border border-dashed border-border bg-gradient-to-br from-muted/40 to-muted/10 p-5 text-center">
+          <Sparkles className="h-6 w-6 text-primary mx-auto mb-1.5" />
+          <p className="text-[12px] font-bold text-foreground">You're all caught up!</p>
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            New activities and quizzes from your teachers will appear here.
           </p>
         </div>
-      )}
+      </div>
+    );
+  }
 
-      <div className="space-y-3">
-        {tasks.map((task) => {
-          const isDone = completed.has(task.id);
+  const activeCount = items.filter((i) => !i.done).length;
+  const urgentCount = items.filter((i) => !i.done && isUrgent(i.due_date)).length;
+
+  return (
+    <div className="px-4 pb-3">
+      {/* Summary chips */}
+      <div className="flex items-center gap-1.5 mb-2.5">
+        <span className="text-[9px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded-full">
+          {activeCount} pending
+        </span>
+        {urgentCount > 0 && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-destructive bg-destructive/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <Flame className="h-2.5 w-2.5" /> {urgentCount} urgent
+          </span>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        {items.map((it) => {
+          const urgent = !it.done && isUrgent(it.due_date);
           return (
             <button
-              key={task.id}
-              onClick={() => handleClick(task)}
-              className={`w-full text-left rounded-2xl overflow-hidden transition-all active:scale-[0.98] hover:shadow-lg ${
-                isDone
-                  ? "bg-success/5 border-l-4 border-success opacity-80"
-                  : task.is_urgent
-                  ? "bg-gradient-to-r from-destructive/10 via-card to-card border-l-4 border-destructive shadow-md shadow-destructive/10"
-                  : "bg-card border border-border/60 card-shadow"
+              key={it.id}
+              onClick={() => navigate(`/learn/${it.ss_id}`)}
+              className={`w-full text-left rounded-xl overflow-hidden transition-all active:scale-[0.99] hover:shadow-md group flex items-stretch ${
+                it.done
+                  ? "bg-success/5 border border-success/30"
+                  : urgent
+                  ? "bg-card border border-destructive/30 shadow-sm shadow-destructive/5"
+                  : "bg-card border border-border/60"
               }`}
             >
-              <div className="flex items-center gap-3 p-3.5">
-                <div className={`h-12 w-12 rounded-xl flex items-center justify-center flex-shrink-0 ${
-                  isDone
+              {/* Colored side bar */}
+              <div className={`w-1.5 flex-shrink-0 ${it.color}`} />
+
+              <div className="flex items-center gap-2.5 p-2.5 flex-1 min-w-0">
+                {/* Kind icon */}
+                <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  it.done
                     ? "bg-success text-primary-foreground"
-                    : task.is_urgent
-                    ? "bg-gradient-to-br from-destructive to-destructive/70 text-primary-foreground"
-                    : "bg-gradient-to-br from-primary/15 to-primary/5 text-primary"
+                    : it.kind === "quiz"
+                    ? "bg-gradient-to-br from-primary to-primary/70 text-primary-foreground"
+                    : "bg-gradient-to-br from-accent to-accent/70 text-accent-foreground"
                 }`}>
-                  {isDone ? <CheckCircle2 className="h-5 w-5" /> : (typeIcon[task.task_type || ""] || <FileText className="h-5 w-5" />)}
+                  {it.done ? <CheckCircle2 className="h-4 w-4" /> : it.kind === "quiz" ? <ClipboardCheck className="h-4 w-4" /> : <PenLine className="h-4 w-4" />}
                 </div>
+
+                {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h4 className={`text-[13px] font-bold truncate ${isDone ? "line-through text-muted-foreground" : "text-foreground"}`}>{task.title}</h4>
-                    {task.is_urgent && !isDone && <Flame className="h-3.5 w-3.5 text-destructive flex-shrink-0 animate-pulse" />}
+                  <div className="flex items-center gap-1">
+                    <h4 className={`text-[12px] font-bold truncate ${it.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
+                      {it.title}
+                    </h4>
+                    {urgent && <Flame className="h-3 w-3 text-destructive flex-shrink-0 animate-pulse" />}
                   </div>
-                  <p className="text-[10px] text-muted-foreground mt-0.5">{task.subject_name}</p>
-                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                    <span className="text-[9px] text-muted-foreground flex items-center gap-1 bg-muted/80 px-2 py-0.5 rounded-full">
-                      <Clock className="h-3 w-3" />{task.due_date}
+                  <p className="text-[9px] text-muted-foreground line-clamp-1">
+                    {it.section_name} · {it.subject_name}
+                  </p>
+                  <div className="flex items-center gap-1.5 mt-0.5">
+                    <span className={`text-[9px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded-full ${
+                      it.kind === "quiz" ? "bg-primary/10 text-primary" : "bg-accent/15 text-accent-foreground"
+                    }`}>
+                      {it.kind}
                     </span>
-                    <Badge variant={task.task_type === "Quiz" ? "default" : "secondary"} className="text-[8px] font-bold px-2 py-0 rounded-full">
-                      {task.task_type}
-                    </Badge>
-                    {isDone && (
-                      <span className="text-[8px] font-bold text-success bg-success/10 px-2 py-0.5 rounded-full">DONE</span>
+                    {it.kind === "activity" && (
+                      <span className={`text-[9px] flex items-center gap-1 ${urgent ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                        <CalendarClock className="h-2.5 w-2.5" />
+                        {formatDue(it.due_date)}
+                      </span>
                     )}
-                    {task.is_urgent && !isDone && (
-                      <span className="text-[8px] font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded-full">URGENT</span>
+                    {it.kind === "quiz" && it.done && (
+                      <span className="text-[9px] font-bold text-success">Submitted</span>
                     )}
                   </div>
                 </div>
+
+                <ChevronRight className="h-4 w-4 text-muted-foreground flex-shrink-0 group-hover:text-primary transition-colors" />
               </div>
             </button>
           );
         })}
       </div>
-
-      <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent className="max-w-sm rounded-2xl">
-          {open && (
-            <>
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-2 text-base">
-                  {typeIcon[open.task_type || ""] || <FileText className="h-5 w-5" />}
-                  {open.title}
-                </DialogTitle>
-                <DialogDescription className="text-xs">
-                  {open.subject_name} • {open.task_type}
-                </DialogDescription>
-              </DialogHeader>
-              <div className="space-y-2 py-2">
-                <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                  <Clock className="h-3.5 w-3.5" />
-                  <span>Due: {open.due_date || "No due date"}</span>
-                </div>
-                {open.is_urgent && (
-                  <div className="flex items-center gap-2 text-xs text-destructive font-bold">
-                    <Flame className="h-3.5 w-3.5" /> Urgent
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground pt-2">
-                  Mark this task as complete when you're done. Your progress syncs in real-time.
-                </p>
-              </div>
-              <DialogFooter className="gap-2 sm:gap-2">
-                <Button variant="outline" size="sm" onClick={() => setOpen(null)} className="rounded-md">
-                  Close
-                </Button>
-                <Button size="sm" onClick={() => toggleComplete(open)} className="rounded-md font-bold">
-                  <Check className="h-3.5 w-3.5 mr-1" />
-                  {completed.has(open.id) ? "Undo Complete" : "Mark Complete"}
-                </Button>
-              </DialogFooter>
-            </>
-          )}
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
