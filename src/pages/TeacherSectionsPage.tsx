@@ -455,10 +455,6 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
   const [schedules, setSchedules] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
-  // Add subject form
-  const [pickTeacher, setPickTeacher] = useState("");
-  const [pickSubject, setPickSubject] = useState("");
-
   // Schedule add
   const [schedFor, setSchedFor] = useState<string | null>(null);
   const [day, setDay] = useState("1");
@@ -473,6 +469,12 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
   useEffect(() => {
     if (!section) return;
     load();
+    const ch = supabase
+      .channel(`section-curriculum-${section.id}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "teacher_subjects" }, () => load())
+      .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects", filter: `section_id=eq.${section.id}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [section?.id]);
 
@@ -498,20 +500,38 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
     } else setSchedules([]);
   };
 
-  const availableSubjectsForTeacher = useMemo(() => {
-    if (!pickTeacher) return [];
-    const subjIds = teacherSubjects.filter((ts) => ts.teacher_id === pickTeacher).map((ts) => ts.subject_id);
-    return allSubjects.filter((s) => subjIds.includes(s.id) && !sectionSubjects.some((ss) => ss.subject_id === s.id));
-  }, [pickTeacher, teacherSubjects, allSubjects, sectionSubjects]);
-
-  const addSectionSubject = async () => {
-    if (!section || !pickTeacher || !pickSubject) { toast.error("Pick teacher and subject"); return; }
-    const { error } = await supabase.from("section_subjects").insert({
-      section_id: section.id, teacher_id: pickTeacher, subject_id: pickSubject,
+  // Subjects matching this section's grade level (auto-populated from curriculum)
+  const curriculumSubjects = useMemo(() => {
+    if (!section) return [];
+    const gl = (section.grade_level || "").trim().toLowerCase();
+    if (!gl) return allSubjects;
+    return allSubjects.filter((s) => {
+      const sgl = (s.grade_level || "").trim().toLowerCase();
+      return !sgl || sgl === gl;
     });
-    if (error) return toast.error(error.message.includes("duplicate") ? "Subject already added" : error.message);
-    toast.success("Subject added to section");
-    setPickTeacher(""); setPickSubject("");
+  }, [section, allSubjects]);
+
+  // Teachers admin-assigned to a given subject
+  const teachersForSubject = (subjectId: string): Teacher[] => {
+    const ids = teacherSubjects.filter((ts) => ts.subject_id === subjectId).map((ts) => ts.teacher_id);
+    return teachers.filter((t) => ids.includes(t.user_id));
+  };
+
+  const assignTeacherToSubject = async (subjectId: string, teacherId: string) => {
+    if (!section) return;
+    const existing = sectionSubjects.find((x) => x.subject_id === subjectId);
+    if (existing) {
+      if (existing.teacher_id === teacherId) return;
+      const { error } = await supabase.from("section_subjects").update({ teacher_id: teacherId }).eq("id", existing.id);
+      if (error) return toast.error(error.message);
+      toast.success("Teacher updated");
+    } else {
+      const { error } = await supabase.from("section_subjects").insert({
+        section_id: section.id, subject_id: subjectId, teacher_id: teacherId,
+      });
+      if (error) return toast.error(error.message);
+      toast.success("Teacher assigned");
+    }
     load(); onChanged();
   };
 
@@ -589,81 +609,103 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
 
         {view === "subjects" && (
           <div className="space-y-3">
-            {/* Add subject */}
-            <div className="bg-muted/30 rounded-xl p-3 space-y-2">
-              <p className="text-[11px] font-bold text-foreground">Add subject (only teachers admin assigned)</p>
-              <div className="grid grid-cols-2 gap-2">
-                <Select value={pickTeacher} onValueChange={(v) => { setPickTeacher(v); setPickSubject(""); }}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Teacher" /></SelectTrigger>
-                  <SelectContent>
-                    {teachers.map((t) => <SelectItem key={t.user_id} value={t.user_id}>{t.last_name}, {t.first_name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-                <Select value={pickSubject} onValueChange={setPickSubject} disabled={!pickTeacher}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder={pickTeacher ? (availableSubjectsForTeacher.length ? "Subject" : "No assigned subjects") : "Pick teacher first"} /></SelectTrigger>
-                  <SelectContent>
-                    {availableSubjectsForTeacher.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
-                  </SelectContent>
-                </Select>
-              </div>
-              <Button size="sm" className="w-full rounded-lg text-xs h-8" onClick={addSectionSubject}>
-                <Plus className="h-3 w-3 mr-1" /> Add Subject
-              </Button>
+            <div className="rounded-xl border border-primary/20 bg-gradient-to-br from-primary/5 to-accent/5 p-3">
+              <p className="text-[11px] font-bold text-foreground">
+                Auto-loaded curriculum for {section.grade_level || "this section"}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-0.5">
+                Pick an admin-assigned teacher per subject. The list updates dynamically as Admins assign teachers.
+              </p>
             </div>
 
-            {/* Subject list with schedules */}
-            {sectionSubjects.length === 0 ? (
-              <p className="text-xs text-center text-muted-foreground py-4">No subjects added yet.</p>
+            {curriculumSubjects.length === 0 ? (
+              <p className="text-xs text-center text-muted-foreground py-4">
+                No curriculum subjects found for this grade level. Ask Admin to add subjects.
+              </p>
             ) : (
-              sectionSubjects.map((ss) => {
-                const subj = allSubjects.find((s) => s.id === ss.subject_id);
-                const teach = teachers.find((t) => t.user_id === ss.teacher_id);
-                const slots = schedules.filter((sc) => sc.section_subject_id === ss.id).sort((a, b) => a.day_of_week - b.day_of_week);
+              curriculumSubjects.map((subj) => {
+                const ss = sectionSubjects.find((x) => x.subject_id === subj.id);
+                const eligibleTeachers = teachersForSubject(subj.id);
+                const slots = ss ? schedules.filter((sc) => sc.section_subject_id === ss.id).sort((a, b) => a.day_of_week - b.day_of_week) : [];
                 return (
-                  <div key={ss.id} className="bg-card border border-border rounded-xl p-3">
-                    <div className="flex items-start justify-between mb-1.5">
-                      <div>
-                        <p className="text-xs font-bold text-foreground">{subj?.name || "Subject"}</p>
-                        <p className="text-[10px] text-muted-foreground">{teach ? `${teach.first_name} ${teach.last_name}` : "Teacher"}</p>
+                  <div key={subj.id} className="bg-card border border-border rounded-xl p-3">
+                    <div className="flex items-start justify-between mb-2 gap-2">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground line-clamp-1">{subj.name}</p>
+                        {subj.grade_level && <p className="text-[10px] text-muted-foreground">{subj.grade_level}</p>}
                       </div>
-                      <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive" onClick={() => removeSectionSubject(ss.id)}>
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
+                      {ss && (
+                        <Button size="icon" variant="ghost" className="h-6 w-6 text-destructive flex-shrink-0" onClick={() => removeSectionSubject(ss.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
                     </div>
-                    <div className="flex flex-wrap gap-1 mb-2">
-                      {slots.length === 0 ? (
-                        <span className="text-[10px] text-muted-foreground italic">No schedule</span>
-                      ) : slots.map((sl) => (
-                        <span key={sl.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
-                          {DAYS[sl.day_of_week]} {sl.start_time?.slice(0, 5)}–{sl.end_time?.slice(0, 5)}{sl.room && ` · ${sl.room}`}
-                          <button onClick={() => deleteSchedule(sl.id)} className="hover:bg-primary/20 rounded-full p-0.5">
-                            <X className="h-2 w-2" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    {schedFor === ss.id ? (
-                      <div className="grid grid-cols-4 gap-1 items-end">
-                        <Select value={day} onValueChange={setDay}>
-                          <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+
+                    {/* Teacher picker (admin-assigned, dynamic) */}
+                    <div className="mb-2">
+                      <Label className="text-[10px] text-muted-foreground">Teacher (admin-assigned)</Label>
+                      {eligibleTeachers.length === 0 ? (
+                        <p className="text-[10px] text-muted-foreground italic mt-1">
+                          No teacher assigned by admin yet for this subject.
+                        </p>
+                      ) : (
+                        <Select
+                          value={ss?.teacher_id || ""}
+                          onValueChange={(v) => assignTeacherToSubject(subj.id, v)}
+                        >
+                          <SelectTrigger className="h-8 text-xs mt-1">
+                            <SelectValue placeholder="Select teacher" />
+                          </SelectTrigger>
                           <SelectContent>
-                            {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+                            {eligibleTeachers.map((t) => (
+                              <SelectItem key={t.user_id} value={t.user_id}>
+                                {t.last_name}, {t.first_name}
+                              </SelectItem>
+                            ))}
                           </SelectContent>
                         </Select>
-                        <Input type="time" value={startT} onChange={(e) => setStartT(e.target.value)} className="h-7 text-[10px]" />
-                        <Input type="time" value={endT} onChange={(e) => setEndT(e.target.value)} className="h-7 text-[10px]" />
-                        <Input placeholder="Room" value={room} onChange={(e) => setRoom(e.target.value)} className="h-7 text-[10px]" />
-                        <div className="col-span-4 flex gap-1">
-                          <Button size="sm" className="flex-1 h-7 text-[10px] rounded-lg" onClick={() => addSchedule(ss.id)}>
-                            <Save className="h-2.5 w-2.5 mr-1" /> Save slot
-                          </Button>
-                          <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => setSchedFor(null)}>Cancel</Button>
+                      )}
+                    </div>
+
+                    {/* Schedule (only after a teacher is assigned) */}
+                    {ss && (
+                      <>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {slots.length === 0 ? (
+                            <span className="text-[10px] text-muted-foreground italic">No schedule</span>
+                          ) : slots.map((sl) => (
+                            <span key={sl.id} className="inline-flex items-center gap-1 bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
+                              {DAYS[sl.day_of_week]} {sl.start_time?.slice(0, 5)}–{sl.end_time?.slice(0, 5)}{sl.room && ` · ${sl.room}`}
+                              <button onClick={() => deleteSchedule(sl.id)} className="hover:bg-primary/20 rounded-full p-0.5">
+                                <X className="h-2 w-2" />
+                              </button>
+                            </span>
+                          ))}
                         </div>
-                      </div>
-                    ) : (
-                      <Button size="sm" variant="outline" className="rounded-lg h-7 text-[10px] w-full" onClick={() => setSchedFor(ss.id)}>
-                        <CalendarClock className="h-3 w-3 mr-1" /> Add schedule slot
-                      </Button>
+                        {schedFor === ss.id ? (
+                          <div className="grid grid-cols-4 gap-1 items-end">
+                            <Select value={day} onValueChange={setDay}>
+                              <SelectTrigger className="h-7 text-[10px]"><SelectValue /></SelectTrigger>
+                              <SelectContent>
+                                {DAYS.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                            <Input type="time" value={startT} onChange={(e) => setStartT(e.target.value)} className="h-7 text-[10px]" />
+                            <Input type="time" value={endT} onChange={(e) => setEndT(e.target.value)} className="h-7 text-[10px]" />
+                            <Input placeholder="Room" value={room} onChange={(e) => setRoom(e.target.value)} className="h-7 text-[10px]" />
+                            <div className="col-span-4 flex gap-1">
+                              <Button size="sm" className="flex-1 h-7 text-[10px] rounded-lg" onClick={() => addSchedule(ss.id)}>
+                                <Save className="h-2.5 w-2.5 mr-1" /> Save slot
+                              </Button>
+                              <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => setSchedFor(null)}>Cancel</Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <Button size="sm" variant="outline" className="rounded-lg h-7 text-[10px] w-full" onClick={() => setSchedFor(ss.id)}>
+                            <CalendarClock className="h-3 w-3 mr-1" /> Add schedule slot
+                          </Button>
+                        )}
+                      </>
                     )}
                   </div>
                 );
