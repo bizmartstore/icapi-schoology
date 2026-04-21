@@ -67,8 +67,9 @@ const App = () => (
             <Route path="/signup/student" element={<PublicRoute><StudentSignupPage /></PublicRoute>} />
             <Route path="/signup/teacher" element={<PublicRoute><TeacherSignupPage /></PublicRoute>} />
             
+            {/* Subject detail is public so guests can browse */}
+            <Route path="/subject/:id" element={<SubjectDetail />} />
             {/* Protected pages - require login */}
-            <Route path="/subject/:id" element={<ProtectedRoute><SubjectDetail /></ProtectedRoute>} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
             <Route path="/grades" element={<ProtectedRoute><GradesPage /></ProtectedRoute>} />
