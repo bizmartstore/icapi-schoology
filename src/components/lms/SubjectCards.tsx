@@ -38,8 +38,6 @@ type Subject = {
 
 const SubjectCards = () => {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
-  const isLoggedIn = !!user && profile?.approval_status === "approved";
   const [subjects, setSubjects] = useState<Subject[]>([]);
 
   useEffect(() => {
@@ -49,11 +47,6 @@ const SubjectCards = () => {
   }, []);
 
   const handleClick = (subjectId: string) => {
-    if (!isLoggedIn) {
-      toast.info("Please login to view subject details");
-      navigate("/login");
-      return;
-    }
     navigate(`/subject/${subjectId}`);
   };
 
