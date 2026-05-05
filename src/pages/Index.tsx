@@ -8,6 +8,7 @@ import Announcements from "@/components/lms/Announcements";
 import TopPerforming from "@/components/lms/TopPerforming";
 import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
+import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock } from "lucide-react";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
@@ -22,6 +23,28 @@ const Index = () => {
   const showJoinNotice = isLoggedIn && isStudent && !isMemberOfAny;
   // My Subjects shows ONLY when student is in at least one section.
   const showMySubjects = isLoggedIn && isStudent && isMemberOfAny;
+
+  // Restore scroll position when returning from a subject detail page
+  useEffect(() => {
+    const flag = sessionStorage.getItem("home:restoreScroll");
+    const y = sessionStorage.getItem("home:scrollY");
+    if (flag === "1" && y) {
+      // Wait for layout (subject cards async-load)
+      const target = parseInt(y, 10) || 0;
+      let attempts = 0;
+      const tryScroll = () => {
+        window.scrollTo({ top: target, behavior: "auto" });
+        attempts += 1;
+        if (attempts < 10 && Math.abs(window.scrollY - target) > 4) {
+          setTimeout(tryScroll, 80);
+        } else {
+          sessionStorage.removeItem("home:restoreScroll");
+          sessionStorage.removeItem("home:scrollY");
+        }
+      };
+      setTimeout(tryScroll, 50);
+    }
+  }, []);
 
   const greeting = () => {
     const hour = new Date().getHours();
