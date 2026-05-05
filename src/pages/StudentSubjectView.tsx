@@ -5,7 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import LMSHeader from "@/components/lms/LMSHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, BookMarked, ListChecks, Trophy, Calendar, Link as LinkIcon, GraduationCap, CheckCircle2, Lock, Sparkles, PartyPopper } from "lucide-react";
+import { ArrowLeft, FileText, BookMarked, ListChecks, Trophy, Calendar, Link as LinkIcon, GraduationCap, CheckCircle2, Lock, Sparkles, PartyPopper, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "activities" | "quizzes" | "materials";
@@ -20,6 +20,7 @@ const StudentSubjectView = () => {
   const [materials, setMaterials] = useState<any[]>([]);
   const [quizzes, setQuizzes] = useState<any[]>([]);
   const [attempts, setAttempts] = useState<Record<string, any>>({});
+  const [actSubmissions, setActSubmissions] = useState<Record<string, any>>({});
   const [isMember, setIsMember] = useState(false);
   const [loading, setLoading] = useState(true);
 
@@ -40,6 +41,7 @@ const StudentSubjectView = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "quizzes", filter: `section_subject_id=eq.${ssId}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "quiz_attempts" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "activity_submissions" }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -75,7 +77,40 @@ const StudentSubjectView = () => {
       (att || []).forEach((a: any) => (m[a.quiz_id] = a));
       setAttempts(m);
     }
+    if (user && (acts || []).length) {
+      const { data: sub } = await supabase
+        .from("activity_submissions")
+        .select("*")
+        .in("activity_id", (acts || []).map((a: any) => a.id))
+        .eq("student_id", user.id);
+      const m: Record<string, any> = {};
+      (sub || []).forEach((s: any) => (m[s.activity_id] = s));
+      setActSubmissions(m);
+    } else {
+      setActSubmissions({});
+    }
     setLoading(false);
+  };
+
+  const toggleActivitySubmitted = async (activityId: string, currentlySubmitted: boolean) => {
+    if (!user) return toast.error("Sign in to submit");
+    if (!isMember) return toast.error("Join the section first");
+    if (currentlySubmitted) {
+      const { error } = await supabase
+        .from("activity_submissions")
+        .delete()
+        .eq("activity_id", activityId)
+        .eq("student_id", user.id);
+      if (error) return toast.error(error.message);
+      toast.success("Marked as not submitted");
+    } else {
+      const { error } = await supabase
+        .from("activity_submissions")
+        .insert({ activity_id: activityId, student_id: user.id });
+      if (error) return toast.error(error.message);
+      toast.success("Marked as submitted!");
+    }
+    load();
   };
 
   const startQuiz = async (q: any) => {
@@ -164,17 +199,42 @@ const StudentSubjectView = () => {
         <div className="p-4 space-y-3 animate-fade-in">
           {tab === "activities" && (
             activities.length === 0 ? <Empty icon={<FileText className="h-10 w-10" />} title="No activities" desc="Your teacher hasn't posted any yet." /> :
-            activities.map((a) => (
-              <div key={a.id} className="bg-card rounded-2xl p-3 card-shadow border border-border/50">
-                <h3 className="text-sm font-bold text-foreground">{a.title}</h3>
-                {a.instructions && <p className="text-[11px] text-muted-foreground mt-1">{a.instructions}</p>}
-                {a.due_date && (
-                  <p className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
-                    <Calendar className="h-2.5 w-2.5" /> Due {new Date(a.due_date).toLocaleString()}
-                  </p>
-                )}
-              </div>
-            ))
+            activities.map((a) => {
+              const submitted = !!actSubmissions[a.id];
+              return (
+                <div key={a.id} className={`rounded-2xl p-3 card-shadow border ${submitted ? "bg-success/5 border-success/30" : "bg-card border-border/50"}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <h3 className={`text-sm font-bold ${submitted ? "text-foreground" : "text-foreground"}`}>{a.title}</h3>
+                    {submitted && (
+                      <Badge className="text-[9px] bg-success text-primary-foreground">
+                        <CheckCircle2 className="h-2.5 w-2.5 mr-1" /> Submitted
+                      </Badge>
+                    )}
+                  </div>
+                  {a.instructions && <p className="text-[11px] text-muted-foreground mt-1">{a.instructions}</p>}
+                  {a.due_date && (
+                    <p className="text-[10px] text-primary font-bold mt-1.5 flex items-center gap-1">
+                      <Calendar className="h-2.5 w-2.5" /> Due {new Date(a.due_date).toLocaleString()}
+                    </p>
+                  )}
+                  <div className="mt-2">
+                    {submitted ? (
+                      <Button size="sm" variant="ghost" className="rounded-lg text-[11px] h-7 text-muted-foreground" onClick={() => toggleActivitySubmitted(a.id, true)}>
+                        <Undo2 className="h-3 w-3 mr-1" /> Undo submit
+                      </Button>
+                    ) : isMember ? (
+                      <Button size="sm" className="rounded-lg text-[11px] h-7" onClick={() => toggleActivitySubmitted(a.id, false)}>
+                        <CheckCircle2 className="h-3 w-3 mr-1" /> Mark Submitted
+                      </Button>
+                    ) : (
+                      <Button size="sm" variant="outline" className="rounded-lg text-[11px] h-7" disabled>
+                        <Lock className="h-3 w-3 mr-1" /> Join section first
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              );
+            })
           )}
 
           {tab === "materials" && (
