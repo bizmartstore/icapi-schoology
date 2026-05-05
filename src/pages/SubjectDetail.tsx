@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
 import { useState } from "react";
-import { ArrowLeft, Calculator, BookText, FlaskConical, Languages, Globe2, Music, Wrench, ChevronRight, FileText, Clock, Upload, CheckCircle2, AlertCircle } from "lucide-react";
+import { ArrowLeft, Calculator, BookText, FlaskConical, Languages, Globe2, Music, Wrench, ChevronRight, FileText, Clock, Upload, CheckCircle2, AlertCircle, Home } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -43,15 +43,32 @@ const SubjectDetail = () => {
 
   const Icon = subject.icon;
 
+  const goBackToSubjects = () => {
+    sessionStorage.setItem("home:restoreScroll", "1");
+    navigate("/");
+  };
+
   return (
     <div className="min-h-screen bg-background pb-8">
       <LMSHeader />
       <div className="max-w-3xl mx-auto">
         {/* Subject Header */}
         <div className={`${subject.color} px-4 py-5`}>
-          <button onClick={() => navigate(-1)} className="flex items-center gap-1 text-primary-foreground/70 text-sm mb-3 hover:text-primary-foreground transition-colors">
-            <ArrowLeft className="h-4 w-4" /> Back
-          </button>
+          <div className="flex items-center justify-between mb-3">
+            <button
+              onClick={goBackToSubjects}
+              className="flex items-center gap-1.5 text-primary-foreground bg-primary-foreground/15 hover:bg-primary-foreground/25 backdrop-blur-sm px-3 py-1.5 rounded-full text-xs font-bold transition-colors"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" /> Back to Subjects
+            </button>
+            <button
+              onClick={goBackToSubjects}
+              className="flex items-center gap-1 text-primary-foreground/80 hover:text-primary-foreground text-[11px] font-semibold transition-colors"
+              aria-label="Home"
+            >
+              <Home className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <div className="h-12 w-12 rounded-2xl bg-primary-foreground/20 flex items-center justify-center">
               <Icon className="h-6 w-6 text-primary-foreground" />
