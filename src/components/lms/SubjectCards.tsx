@@ -47,6 +47,8 @@ const SubjectCards = () => {
   }, []);
 
   const handleClick = (subjectId: string) => {
+    // Save current scroll so we can restore on back
+    sessionStorage.setItem("home:scrollY", String(window.scrollY));
     navigate(`/subject/${subjectId}`);
   };
 
