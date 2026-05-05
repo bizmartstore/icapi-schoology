@@ -58,6 +58,33 @@ export type Database = {
           },
         ]
       }
+      activity_submissions: {
+        Row: {
+          activity_id: string
+          id: string
+          note: string | null
+          student_id: string
+          submitted_at: string
+          url: string | null
+        }
+        Insert: {
+          activity_id: string
+          id?: string
+          note?: string | null
+          student_id: string
+          submitted_at?: string
+          url?: string | null
+        }
+        Update: {
+          activity_id?: string
+          id?: string
+          note?: string | null
+          student_id?: string
+          submitted_at?: string
+          url?: string | null
+        }
+        Relationships: []
+      }
       announcements: {
         Row: {
           created_at: string | null
