@@ -1,5 +1,5 @@
 import LMSHeader from "@/components/lms/LMSHeader";
-import BannerCarousel from "@/components/lms/BannerCarousel";
+import HeroBanner from "@/components/lms/HeroBanner";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
 import MySubjectsBySection from "@/components/lms/MySubjectsBySection";
 import SectionsList from "@/components/lms/SectionsList";
@@ -58,8 +58,8 @@ const Index = () => {
       <LMSHeader />
 
       <div className="max-w-3xl mx-auto">
-        {/* Banner */}
-        <BannerCarousel />
+        {/* Hero Banner */}
+        <HeroBanner />
 
         {/* Welcome strip */}
         <div className="bg-card border-b border-border px-4 py-3">

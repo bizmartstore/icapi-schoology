@@ -1,4 +1,4 @@
-import { Search, Bell, MessageSquare, LogIn, GraduationCap, ShoppingBag } from "lucide-react";
+import { Search, Bell, MessageSquare, LogIn, BookMarked } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,11 +15,16 @@ const LMSHeader = () => {
     : "?";
 
   return (
-    <header className="sticky top-0 z-50 shopee-gradient px-4 pt-3 pb-2.5 shadow-md">
+    <header className="sticky top-0 z-50 sacred-gradient px-4 pt-3 pb-2.5 shadow-md border-b border-accent/30">
       <div className="flex items-center gap-2.5 mb-2.5">
         <div className="flex items-center gap-1.5">
-          <GraduationCap className="h-6 w-6 text-primary-foreground" />
-          <span className="text-base font-extrabold text-primary-foreground tracking-tight">EduLearn</span>
+          <div className="h-7 w-7 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
+            <BookMarked className="h-4 w-4 text-accent" />
+          </div>
+          <div className="leading-none">
+            <span className="block font-serif-display text-[17px] font-bold text-primary-foreground tracking-tight">EduLumen</span>
+            <span className="block text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Catholic LMS</span>
+          </div>
         </div>
         <div className="flex-1" />
         {isLoggedIn ? (
