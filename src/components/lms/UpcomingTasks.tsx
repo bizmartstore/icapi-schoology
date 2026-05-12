@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ClipboardCheck, PenLine, Flame, Lock, CheckCircle2, CalendarClock, ChevronRight, Sparkles, Inbox, School } from "lucide-react";
+import { ClipboardCheck, PenLine, Flame, Lock, CheckCircle2, CalendarClock, ChevronRight, Inbox, School, AlertTriangle, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
@@ -23,9 +23,16 @@ const formatDue = (iso: string | null) => {
   if (!iso) return "No due date";
   const d = new Date(iso);
   const now = new Date();
-  const diff = Math.ceil((d.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-  if (diff < 0) return `Overdue · ${d.toLocaleDateString()}`;
-  if (diff === 0) return "Due today";
+  const ms = d.getTime() - now.getTime();
+  const diff = Math.ceil(ms / (1000 * 60 * 60 * 24));
+  if (ms < 0) {
+    const lateDays = Math.abs(diff);
+    return lateDays === 0 ? "Late today" : `Late by ${lateDays}d`;
+  }
+  if (diff === 0) {
+    const hrs = Math.max(1, Math.ceil(ms / (1000 * 60 * 60)));
+    return `Due in ${hrs}h`;
+  }
   if (diff === 1) return "Due tomorrow";
   if (diff <= 7) return `Due in ${diff} days`;
   return `Due ${d.toLocaleDateString()}`;
@@ -34,7 +41,11 @@ const formatDue = (iso: string | null) => {
 const isUrgent = (iso: string | null) => {
   if (!iso) return false;
   const diff = (new Date(iso).getTime() - Date.now()) / (1000 * 60 * 60 * 24);
-  return diff <= 2;
+  return diff > 0 && diff <= 2;
+};
+const isLate = (iso: string | null) => {
+  if (!iso) return false;
+  return new Date(iso).getTime() < Date.now();
 };
 
 const UpcomingTasks = () => {
@@ -50,6 +61,7 @@ const UpcomingTasks = () => {
   const [joinedSections, setJoinedSections] = useState<{ id: string; name: string }[]>([]);
   const [dialogItem, setDialogItem] = useState<TaskDialogItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [subjectFilter, setSubjectFilter] = useState<string>("all");
 
   const load = async () => {
     if (!user || !isMemberOfAny) {
@@ -175,6 +187,12 @@ const UpcomingTasks = () => {
     setDialogOpen(true);
   };
 
+  const subjects = useMemo(() => Array.from(new Set(items.map((i) => i.subject_name))), [items]);
+  const filteredItems = useMemo(
+    () => (subjectFilter === "all" ? items : items.filter((i) => i.subject_name === subjectFilter)),
+    [items, subjectFilter]
+  );
+
   if (gated) {
     return (
       <div className="px-4 pb-3">
@@ -254,26 +272,71 @@ const UpcomingTasks = () => {
     );
   }
 
-  const activeCount = items.filter((i) => !i.done).length;
-  const urgentCount = items.filter((i) => !i.done && isUrgent(i.due_date)).length;
+  const activeCount = filteredItems.filter((i) => !i.done).length;
+  const urgentCount = filteredItems.filter((i) => !i.done && isUrgent(i.due_date)).length;
+  const lateCount = filteredItems.filter((i) => !i.done && isLate(i.due_date)).length;
 
   return (
     <div className="px-4 pb-3">
       {/* Summary chips */}
-      <div className="flex items-center gap-1.5 mb-2.5">
+      <div className="flex items-center gap-1.5 mb-2 flex-wrap">
         <span className="text-[9px] font-bold uppercase tracking-wide text-primary bg-primary/10 px-2 py-0.5 rounded-full">
           {activeCount} pending
         </span>
         {urgentCount > 0 && (
-          <span className="text-[9px] font-bold uppercase tracking-wide text-destructive bg-destructive/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="text-[9px] font-bold uppercase tracking-wide text-warning bg-warning/10 px-2 py-0.5 rounded-full flex items-center gap-1">
             <Flame className="h-2.5 w-2.5" /> {urgentCount} urgent
+          </span>
+        )}
+        {lateCount > 0 && (
+          <span className="text-[9px] font-bold uppercase tracking-wide text-destructive bg-destructive/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+            <AlertTriangle className="h-2.5 w-2.5" /> {lateCount} late
           </span>
         )}
       </div>
 
+      {/* Subject filter chips */}
+      {subjects.length > 1 && (
+        <div className="flex items-center gap-1.5 mb-2.5 overflow-x-auto scrollbar-hide -mx-1 px-1">
+          <Filter className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+          <button
+            onClick={() => setSubjectFilter("all")}
+            className={`text-[10px] font-bold px-2.5 py-1 rounded-full transition-all flex-shrink-0 ${
+              subjectFilter === "all"
+                ? "bg-primary text-primary-foreground shadow-sm"
+                : "bg-muted text-muted-foreground hover:bg-muted/70"
+            }`}
+          >
+            All ({items.length})
+          </button>
+          {subjects.map((s) => {
+            const count = items.filter((i) => i.subject_name === s).length;
+            return (
+              <button
+                key={s}
+                onClick={() => setSubjectFilter(s)}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-full transition-all flex-shrink-0 whitespace-nowrap ${
+                  subjectFilter === s
+                    ? "bg-primary text-primary-foreground shadow-sm"
+                    : "bg-muted text-muted-foreground hover:bg-muted/70"
+                }`}
+              >
+                {s} ({count})
+              </button>
+            );
+          })}
+        </div>
+      )}
+
       <div className="space-y-2">
-        {items.map((it) => {
+        {filteredItems.length === 0 && (
+          <div className="text-center text-[11px] text-muted-foreground py-4">
+            No tasks for this subject 🎉
+          </div>
+        )}
+        {filteredItems.map((it) => {
           const urgent = !it.done && isUrgent(it.due_date);
+          const late = !it.done && isLate(it.due_date);
           return (
             <button
               key={it.id}
@@ -281,8 +344,10 @@ const UpcomingTasks = () => {
               className={`w-full text-left rounded-xl overflow-hidden transition-all active:scale-[0.99] hover:shadow-md group flex items-stretch ${
                 it.done
                   ? "bg-success/5 border border-success/30"
+                  : late
+                  ? "bg-card border border-destructive/40 shadow-sm shadow-destructive/10"
                   : urgent
-                  ? "bg-card border border-destructive/30 shadow-sm shadow-destructive/5"
+                  ? "bg-card border border-warning/40 shadow-sm shadow-warning/10"
                   : "bg-card border border-border/60"
               }`}
             >
@@ -303,11 +368,14 @@ const UpcomingTasks = () => {
 
                 {/* Content */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1">
+                  <div className="flex items-center gap-1 flex-wrap">
                     <h4 className={`text-[12px] font-bold truncate ${it.done ? "line-through text-muted-foreground" : "text-foreground"}`}>
                       {it.title}
                     </h4>
-                    {urgent && <Flame className="h-3 w-3 text-destructive flex-shrink-0 animate-pulse" />}
+                    {late && (
+                      <span className="text-[8px] font-extrabold uppercase tracking-wide bg-destructive text-destructive-foreground px-1.5 py-0.5 rounded">LATE</span>
+                    )}
+                    {!late && urgent && <Flame className="h-3 w-3 text-warning flex-shrink-0 animate-pulse" />}
                   </div>
                   <p className="text-[9px] text-muted-foreground line-clamp-1">
                     {it.section_name} · {it.subject_name}
@@ -319,7 +387,7 @@ const UpcomingTasks = () => {
                       {it.kind}
                     </span>
                     {it.kind === "activity" && (
-                      <span className={`text-[9px] flex items-center gap-1 ${urgent ? "text-destructive font-bold" : "text-muted-foreground"}`}>
+                      <span className={`text-[9px] flex items-center gap-1 ${late ? "text-destructive font-bold" : urgent ? "text-warning font-bold" : "text-muted-foreground"}`}>
                         <CalendarClock className="h-2.5 w-2.5" />
                         {formatDue(it.due_date)}
                       </span>

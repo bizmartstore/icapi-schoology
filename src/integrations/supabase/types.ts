@@ -16,6 +16,8 @@ export type Database = {
     Tables: {
       activities: {
         Row: {
+          attachment_name: string | null
+          attachment_url: string | null
           created_at: string
           created_by: string
           due_date: string | null
@@ -27,6 +29,8 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          attachment_name?: string | null
+          attachment_url?: string | null
           created_at?: string
           created_by: string
           due_date?: string | null
@@ -38,6 +42,8 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          attachment_name?: string | null
+          attachment_url?: string | null
           created_at?: string
           created_by?: string
           due_date?: string | null
