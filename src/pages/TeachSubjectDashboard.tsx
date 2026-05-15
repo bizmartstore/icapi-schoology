@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, FileText, BookMarked, ListChecks, Trophy, Trash2, Eye, EyeOff, Save, X, Calendar, Link as LinkIcon, GraduationCap } from "lucide-react";
+import { ArrowLeft, Plus, FileText, BookMarked, ListChecks, Trophy, Trash2, Eye, EyeOff, Save, X, Calendar, Link as LinkIcon, GraduationCap, Upload, Loader2, Download, File as FileIcon } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "activities" | "quizzes" | "materials" | "results";
@@ -30,7 +30,9 @@ const TeachSubjectDashboard = () => {
   const [actDlg, setActDlg] = useState(false);
   const [actForm, setActForm] = useState<{ title: string; instructions: string; due_date: string }>({ title: "", instructions: "", due_date: "" });
   const [matDlg, setMatDlg] = useState(false);
-  const [matForm, setMatForm] = useState<{ title: string; description: string; url: string }>({ title: "", description: "", url: "" });
+  const [matForm, setMatForm] = useState<{ title: string; description: string; url: string; file_name: string; file_type: string; file_size: number | null }>({ title: "", description: "", url: "", file_name: "", file_type: "", file_size: null });
+  const [matUploading, setMatUploading] = useState(false);
+  const matFileRef = useRef<HTMLInputElement>(null);
   const [quizDlg, setQuizDlg] = useState(false);
   const [editingQuiz, setEditingQuiz] = useState<any | null>(null);
   const [quizForm, setQuizForm] = useState<{
@@ -114,13 +116,48 @@ const TeachSubjectDashboard = () => {
   /* ===================== MATERIALS ===================== */
   const saveMaterial = async () => {
     if (!matForm.title.trim()) return toast.error("Title required");
+    if (!matForm.url) return toast.error("Upload a file or paste a link");
     const { error } = await supabase.from("materials").insert({
-      section_subject_id: ssId!, title: matForm.title, description: matForm.description || null,
-      url: matForm.url || null, created_by: user!.id,
+      section_subject_id: ssId!,
+      title: matForm.title,
+      description: matForm.description || null,
+      url: matForm.url || null,
+      file_name: matForm.file_name || null,
+      file_type: matForm.file_type || null,
+      file_size: matForm.file_size || null,
+      created_by: user!.id,
     });
     if (error) return toast.error(error.message);
-    toast.success("Material added");
-    setMatDlg(false); setMatForm({ title: "", description: "", url: "" });
+    toast.success("Module published — students can now download");
+    setMatDlg(false);
+    setMatForm({ title: "", description: "", url: "", file_name: "", file_type: "", file_size: null });
+  };
+  const uploadMaterialFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (f.size > 50 * 1024 * 1024) return toast.error("File too large (max 50MB)");
+    if (!user) return;
+    setMatUploading(true);
+    const ext = f.name.split(".").pop() || "bin";
+    const path = `${user.id}/${ssId}-${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("materials").upload(path, f, { upsert: true, contentType: f.type });
+    if (error) {
+      setMatUploading(false);
+      toast.error(error.message);
+      return;
+    }
+    const { data } = supabase.storage.from("materials").getPublicUrl(path);
+    setMatForm((prev) => ({
+      ...prev,
+      url: data.publicUrl,
+      file_name: f.name,
+      file_type: f.type || "",
+      file_size: f.size,
+      title: prev.title || f.name.replace(/\.[^.]+$/, ""),
+    }));
+    setMatUploading(false);
+    if (matFileRef.current) matFileRef.current.value = "";
+    toast.success("File uploaded");
   };
   const deleteMaterial = async (id: string) => {
     if (!confirm("Delete this material?")) return;
