@@ -3,11 +3,21 @@ import { useNavigate } from "react-router-dom";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CalendarClock, ClipboardCheck, PenLine, Link as LinkIcon, CheckCircle2, Loader2, Undo2, Sparkles, Flame, GraduationCap, School, AlertTriangle, Upload, FileText, Download, Paperclip, X, Trophy } from "lucide-react";
+import { CalendarClock, ClipboardCheck, PenLine, CheckCircle2, Loader2, Undo2, Sparkles, Flame, GraduationCap, School, AlertTriangle, Upload, FileText, Download, Paperclip, Trophy, Image as ImageIcon, FileWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 export type TaskDialogItem = {
   id: string; // raw id (activity or quiz)
@@ -33,20 +43,67 @@ const formatDue = (iso?: string | null) => {
   const ms = d.getTime() - Date.now();
   const dateStr = d.toLocaleString(undefined, { dateStyle: "medium", timeStyle: "short" });
   if (ms < 0) {
-    const lateDays = Math.ceil(Math.abs(ms) / (1000 * 60 * 60 * 24));
-    return `Late by ${lateDays}d · ${dateStr}`;
+    const mins = Math.floor(Math.abs(ms) / 60000);
+    if (mins < 60) return `Late by ${mins}m · ${dateStr}`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `Late by ${hrs}h · ${dateStr}`;
+    const days = Math.floor(hrs / 24);
+    return `Late by ${days}d · ${dateStr}`;
   }
-  const diff = Math.ceil(ms / (1000 * 60 * 60 * 24));
-  const hrs = Math.ceil(ms / (1000 * 60 * 60));
-  if (diff === 0) return `Due in ${hrs}h · ${dateStr}`;
-  if (diff === 1) return `Due tomorrow · ${dateStr}`;
-  return `Due in ${diff} days · ${dateStr}`;
+  const mins = Math.floor(ms / 60000);
+  if (mins < 60) return `Due in ${mins}m · ${dateStr}`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `Due in ${hrs}h · ${dateStr}`;
+  const days = Math.floor(hrs / 24);
+  if (days === 1) return `Due tomorrow · ${dateStr}`;
+  return `Due in ${days} days · ${dateStr}`;
 };
 const isLate = (iso?: string | null) => !!iso && new Date(iso).getTime() < Date.now();
 const isUrgent = (iso?: string | null) => {
   if (!iso) return false;
   const ms = new Date(iso).getTime() - Date.now();
   return ms > 0 && ms <= 1000 * 60 * 60 * 48;
+};
+
+const detectKind = (url?: string | null, type?: string | null): "image" | "pdf" | "other" => {
+  const t = (type || "").toLowerCase();
+  const u = (url || "").toLowerCase().split("?")[0];
+  if (t.startsWith("image/") || /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(u)) return "image";
+  if (t === "application/pdf" || u.endsWith(".pdf")) return "pdf";
+  return "other";
+};
+
+const AttachmentPreview = ({ url, name, type, accent = "primary" }: { url: string; name?: string | null; type?: string | null; accent?: "primary" | "success" }) => {
+  const kind = detectKind(url, type);
+  const ring = accent === "success" ? "border-success/30 bg-success/5" : "border-primary/20 bg-primary/5";
+  const text = accent === "success" ? "text-success" : "text-primary";
+  return (
+    <div className={`rounded-xl border ${ring} overflow-hidden`}>
+      {kind === "image" && (
+        <a href={url} target="_blank" rel="noopener noreferrer" className="block bg-black/5">
+          <img src={url} alt={name || "attachment"} className="w-full max-h-64 object-contain bg-card" loading="lazy" />
+        </a>
+      )}
+      {kind === "pdf" && (
+        <iframe src={url} title={name || "PDF preview"} className="w-full h-64 bg-card" />
+      )}
+      <div className="flex items-center justify-between gap-2 px-3 py-2">
+        <div className="flex items-center gap-1.5 min-w-0">
+          {kind === "image" ? <ImageIcon className={`h-3.5 w-3.5 ${text} flex-shrink-0`} /> : kind === "pdf" ? <FileText className={`h-3.5 w-3.5 ${text} flex-shrink-0`} /> : <FileWarning className={`h-3.5 w-3.5 ${text} flex-shrink-0`} />}
+          <span className={`text-[11px] font-bold ${text} truncate`}>{name || (kind === "pdf" ? "PDF document" : kind === "image" ? "Image" : "Attachment")}</span>
+        </div>
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          download={name || true}
+          className={`text-[10px] font-bold ${text} flex items-center gap-1 px-2 py-1 rounded-md hover:bg-card/70 transition-colors`}
+        >
+          <Download className="h-3 w-3" /> Download
+        </a>
+      </div>
+    </div>
+  );
 };
 
 const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
@@ -59,6 +116,15 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
   const [note, setNote] = useState("");
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [, setNow] = useState(Date.now());
+  const [confirmUndo, setConfirmUndo] = useState(false);
+
+  // Live tick every 60s for countdown refresh
+  useEffect(() => {
+    if (!open) return;
+    const t = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, [open]);
 
   useEffect(() => {
     if (!open || !item) return;
@@ -193,6 +259,10 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
   };
 
   const goToQuiz = () => {
+    // Persist the task so we can re-open this dialog after returning from the quiz
+    try {
+      sessionStorage.setItem("pendingTaskDialog", JSON.stringify(item));
+    } catch {}
     onOpenChange(false);
     navigate(`/learn/${item.ss_id}?tab=quizzes&quiz=${item.id}&return=home`);
   };
@@ -270,19 +340,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
               {isActivity && details?.attachment_url && (
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground mb-1">Attachment from teacher</p>
-                  <a
-                    href={details.attachment_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    download={details.attachment_name || true}
-                    className="flex items-center justify-between gap-2 text-[12px] font-bold text-primary bg-primary/5 hover:bg-primary/10 rounded-lg px-3 py-2 transition-colors border border-primary/20"
-                  >
-                    <span className="flex items-center gap-2 min-w-0">
-                      <FileText className="h-3.5 w-3.5 flex-shrink-0" />
-                      <span className="truncate">{details.attachment_name || "Open attachment"}</span>
-                    </span>
-                    <Download className="h-3.5 w-3.5 flex-shrink-0" />
-                  </a>
+                  <AttachmentPreview url={details.attachment_url} name={details.attachment_name} accent="primary" />
                 </div>
               )}
 
@@ -293,18 +351,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
                     <Paperclip className="h-3 w-3" /> Your submission
                   </p>
                   {submission?.url && (
-                    <a
-                      href={submission.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center justify-between gap-2 text-[11px] font-bold text-success bg-success/10 hover:bg-success/15 rounded-lg px-2.5 py-1.5 transition-colors border border-success/30"
-                    >
-                      <span className="flex items-center gap-1.5 min-w-0">
-                        <CheckCircle2 className="h-3 w-3 flex-shrink-0" />
-                        <span className="truncate">Uploaded file</span>
-                      </span>
-                      <Download className="h-3 w-3 flex-shrink-0" />
-                    </a>
+                    <AttachmentPreview url={submission.url} name="Your uploaded file" accent="success" />
                   )}
                   <Textarea
                     placeholder="Optional note to your teacher…"
@@ -353,7 +400,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
                 <Button variant="outline" className="flex-1 rounded-xl text-xs h-10" onClick={goToSubject}>
                   View Subject
                 </Button>
-                <Button variant="ghost" className="rounded-xl text-xs h-10 text-muted-foreground" disabled={working} onClick={undoSubmitted}>
+                <Button variant="ghost" className="rounded-xl text-xs h-10 text-muted-foreground" disabled={working} onClick={() => setConfirmUndo(true)}>
                   {working ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Undo2 className="h-3.5 w-3.5 mr-1" /> Undo</>}
                 </Button>
               </div>
@@ -387,6 +434,31 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
             </div>
           )}
         </div>
+
+        <AlertDialog open={confirmUndo} onOpenChange={setConfirmUndo}>
+          <AlertDialogContent className="rounded-2xl max-w-sm">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2 text-base">
+                <Undo2 className="h-4 w-4 text-destructive" /> Retract this submission?
+              </AlertDialogTitle>
+              <AlertDialogDescription className="text-[12px] leading-relaxed">
+                This will mark the activity as <b>not submitted</b> and remove your uploaded file link from the teacher's view. You can re-upload and submit again anytime before the deadline.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="rounded-lg text-xs">Keep submission</AlertDialogCancel>
+              <AlertDialogAction
+                className="rounded-lg text-xs bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+                onClick={async () => {
+                  setConfirmUndo(false);
+                  await undoSubmitted();
+                }}
+              >
+                Yes, undo submission
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </DialogContent>
     </Dialog>
   );
