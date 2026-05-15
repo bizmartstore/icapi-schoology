@@ -62,6 +62,26 @@ const UpcomingTasks = () => {
   const [dialogItem, setDialogItem] = useState<TaskDialogItem | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
+  const [, setNowTick] = useState(Date.now());
+
+  // Live countdown refresh (every 60s) so "Late" appears immediately as time passes
+  useEffect(() => {
+    const t = setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => clearInterval(t);
+  }, []);
+
+  // After returning from a quiz, re-open the same task dialog if one was pending
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("pendingTaskDialog");
+      if (raw) {
+        const parsed = JSON.parse(raw) as TaskDialogItem;
+        sessionStorage.removeItem("pendingTaskDialog");
+        setDialogItem(parsed);
+        setDialogOpen(true);
+      }
+    } catch {}
+  }, []);
 
   const load = async () => {
     if (!user || !isMemberOfAny) {

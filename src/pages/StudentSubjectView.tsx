@@ -1,11 +1,11 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import LMSHeader from "@/components/lms/LMSHeader";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, BookMarked, ListChecks, Trophy, Calendar, Link as LinkIcon, GraduationCap, CheckCircle2, Lock, Sparkles, PartyPopper, Undo2 } from "lucide-react";
+import { ArrowLeft, FileText, BookMarked, ListChecks, Trophy, Calendar, Link as LinkIcon, GraduationCap, CheckCircle2, Lock, Sparkles, PartyPopper, Undo2, Download, File as FileIcon, Image as ImageIcon } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "activities" | "quizzes" | "materials";
@@ -14,7 +14,11 @@ const StudentSubjectView = () => {
   const { ssId } = useParams<{ ssId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("activities");
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "activities";
+  const quizParam = searchParams.get("quiz");
+  const returnTo = searchParams.get("return"); // "home" -> go back to / and re-open task dialog
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [meta, setMeta] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -31,6 +35,20 @@ const StudentSubjectView = () => {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [resultDialog, setResultDialog] = useState<{ score: number; total: number } | null>(null);
+  const [autoStarted, setAutoStarted] = useState(false);
+
+  // Auto-start a specific quiz if requested via ?quiz=:id
+  useEffect(() => {
+    if (autoStarted || !quizParam || quizzes.length === 0) return;
+    const q = quizzes.find((x) => x.id === quizParam);
+    if (q && !attempts[q.id]) {
+      setAutoStarted(true);
+      startQuiz(q);
+    } else if (q) {
+      setAutoStarted(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizParam, quizzes, attempts]);
 
   useEffect(() => {
     if (!ssId) return;
@@ -238,18 +256,80 @@ const StudentSubjectView = () => {
           )}
 
           {tab === "materials" && (
-            materials.length === 0 ? <Empty icon={<BookMarked className="h-10 w-10" />} title="No materials" desc="No resources yet." /> :
-            materials.map((m) => (
-              <div key={m.id} className="bg-card rounded-2xl p-3 card-shadow border border-border/50">
-                <h3 className="text-sm font-bold text-foreground">{m.title}</h3>
-                {m.description && <p className="text-[11px] text-muted-foreground mt-1">{m.description}</p>}
-                {m.url && (
-                  <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary font-bold mt-1.5 inline-flex items-center gap-1 hover:underline">
-                    <LinkIcon className="h-2.5 w-2.5" /> Open
-                  </a>
-                )}
+            materials.length === 0 ? <Empty icon={<BookMarked className="h-10 w-10" />} title="No modules yet" desc="Your teacher will share PDFs and resources here." /> :
+            <div className="space-y-3">
+              <div className="rounded-xl bg-gradient-to-br from-primary/10 via-accent/5 to-card border border-primary/20 px-3 py-2 flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-primary/15 flex items-center justify-center">
+                  <BookMarked className="h-4 w-4 text-primary" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[11px] font-bold text-foreground">Module Library</p>
+                  <p className="text-[9px] text-muted-foreground">{materials.length} resource{materials.length === 1 ? "" : "s"} from your teacher</p>
+                </div>
               </div>
-            ))
+              {materials.map((m) => {
+                const isPdf = (m.file_type || "").includes("pdf") || (m.url || "").toLowerCase().endsWith(".pdf");
+                const isImage = (m.file_type || "").startsWith("image/") || /\.(png|jpe?g|gif|webp)$/i.test(m.url || "");
+                const isFile = !!m.file_name;
+                const sizeMb = m.file_size ? (m.file_size / 1024 / 1024).toFixed(1) : null;
+                return (
+                  <div key={m.id} className="bg-card rounded-2xl card-shadow border border-border/50 overflow-hidden active:scale-[0.99] transition-transform">
+                    <div className="flex items-stretch">
+                      <div className={`w-1.5 ${isPdf ? "bg-destructive" : isImage ? "bg-info" : isFile ? "bg-primary" : "bg-accent"}`} />
+                      <div className="flex-1 p-3 min-w-0">
+                        <div className="flex items-start gap-2.5">
+                          <div className={`h-11 w-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                            isPdf ? "bg-destructive/10 text-destructive" : isImage ? "bg-info/10 text-info" : isFile ? "bg-primary/10 text-primary" : "bg-accent/15 text-accent-foreground"
+                          }`}>
+                            {isPdf ? <FileText className="h-5 w-5" /> : isImage ? <ImageIcon className="h-5 w-5" /> : isFile ? <FileIcon className="h-5 w-5" /> : <LinkIcon className="h-5 w-5" />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <h3 className="text-sm font-bold text-foreground leading-snug">{m.title}</h3>
+                            {m.description && <p className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2">{m.description}</p>}
+                            <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                              {isPdf && <span className="text-[8px] font-extrabold uppercase bg-destructive/10 text-destructive px-1.5 py-0.5 rounded">PDF</span>}
+                              {isImage && <span className="text-[8px] font-extrabold uppercase bg-info/10 text-info px-1.5 py-0.5 rounded">Image</span>}
+                              {!isPdf && !isImage && isFile && <span className="text-[8px] font-extrabold uppercase bg-primary/10 text-primary px-1.5 py-0.5 rounded">File</span>}
+                              {!isFile && m.url && <span className="text-[8px] font-extrabold uppercase bg-accent/15 text-accent-foreground px-1.5 py-0.5 rounded">Link</span>}
+                              {sizeMb && <span className="text-[9px] text-muted-foreground">{sizeMb}MB</span>}
+                            </div>
+                          </div>
+                        </div>
+                        {m.url && (
+                          <div className="mt-2.5 flex gap-2">
+                            {isFile ? (
+                              <>
+                                <a
+                                  href={m.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  download={m.file_name || true}
+                                  className="flex-1 inline-flex items-center justify-center gap-1.5 text-[11px] font-bold bg-primary text-primary-foreground rounded-lg px-3 py-2 hover:bg-primary/90 transition-colors"
+                                >
+                                  <Download className="h-3 w-3" /> Download
+                                </a>
+                                <a
+                                  href={m.url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center gap-1.5 text-[11px] font-bold border border-border rounded-lg px-3 py-2 hover:bg-muted/40 transition-colors"
+                                >
+                                  Preview
+                                </a>
+                              </>
+                            ) : (
+                              <a href={m.url} target="_blank" rel="noopener noreferrer" className="flex-1 inline-flex items-center justify-center gap-1.5 text-[11px] font-bold bg-primary text-primary-foreground rounded-lg px-3 py-2 hover:bg-primary/90 transition-colors">
+                                <LinkIcon className="h-3 w-3" /> Open Link
+                              </a>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           )}
 
           {tab === "quizzes" && (
@@ -350,7 +430,15 @@ const StudentSubjectView = () => {
             <p className="text-xs text-muted-foreground mt-1">
               {resultDialog.total ? Math.round((resultDialog.score / resultDialog.total) * 100) : 0}%
             </p>
-            <Button className="w-full mt-4 rounded-xl" onClick={() => setResultDialog(null)}>Done</Button>
+            <Button
+              className="w-full mt-4 rounded-xl"
+              onClick={() => {
+                setResultDialog(null);
+                if (returnTo === "home") navigate("/");
+              }}
+            >
+              {returnTo === "home" ? "Back to Task" : "Done"}
+            </Button>
           </div>
         </div>
       )}
