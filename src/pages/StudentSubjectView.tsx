@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import LMSHeader from "@/components/lms/LMSHeader";
@@ -14,7 +14,11 @@ const StudentSubjectView = () => {
   const { ssId } = useParams<{ ssId: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const [tab, setTab] = useState<Tab>("activities");
+  const [searchParams] = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "activities";
+  const quizParam = searchParams.get("quiz");
+  const returnTo = searchParams.get("return"); // "home" -> go back to / and re-open task dialog
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [meta, setMeta] = useState<any>(null);
   const [activities, setActivities] = useState<any[]>([]);
   const [materials, setMaterials] = useState<any[]>([]);
@@ -31,6 +35,20 @@ const StudentSubjectView = () => {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [resultDialog, setResultDialog] = useState<{ score: number; total: number } | null>(null);
+  const [autoStarted, setAutoStarted] = useState(false);
+
+  // Auto-start a specific quiz if requested via ?quiz=:id
+  useEffect(() => {
+    if (autoStarted || !quizParam || quizzes.length === 0) return;
+    const q = quizzes.find((x) => x.id === quizParam);
+    if (q && !attempts[q.id]) {
+      setAutoStarted(true);
+      startQuiz(q);
+    } else if (q) {
+      setAutoStarted(true);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quizParam, quizzes, attempts]);
 
   useEffect(() => {
     if (!ssId) return;
