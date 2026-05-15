@@ -368,7 +368,15 @@ const StudentSubjectView = () => {
             <p className="text-xs text-muted-foreground mt-1">
               {resultDialog.total ? Math.round((resultDialog.score / resultDialog.total) * 100) : 0}%
             </p>
-            <Button className="w-full mt-4 rounded-xl" onClick={() => setResultDialog(null)}>Done</Button>
+            <Button
+              className="w-full mt-4 rounded-xl"
+              onClick={() => {
+                setResultDialog(null);
+                if (returnTo === "home") navigate("/");
+              }}
+            >
+              {returnTo === "home" ? "Back to Task" : "Done"}
+            </Button>
           </div>
         </div>
       )}
