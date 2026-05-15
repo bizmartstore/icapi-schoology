@@ -327,21 +327,32 @@ const TeachSubjectDashboard = () => {
           {/* MATERIALS */}
           {tab === "materials" && (
             <>
-              <Button size="sm" className="rounded-xl text-xs font-bold" onClick={() => setMatDlg(true)}>
-                <Plus className="h-3.5 w-3.5 mr-1" /> Add Material
-              </Button>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] font-bold text-foreground">📚 Module Library</p>
+                  <p className="text-[10px] text-muted-foreground">Upload PDFs, slides, or links your students can download.</p>
+                </div>
+                <Button size="sm" className="rounded-xl text-xs font-bold" onClick={() => setMatDlg(true)}>
+                  <Upload className="h-3.5 w-3.5 mr-1" /> Upload Module
+                </Button>
+              </div>
               {materials.length === 0 ? (
-                <Empty icon={<BookMarked className="h-10 w-10" />} title="No materials" desc="Share readings, links, or notes." />
+                <Empty icon={<BookMarked className="h-10 w-10" />} title="No modules yet" desc="Upload a PDF or share a link — students in this section can download it." />
               ) : (
                 materials.map((m) => (
                   <div key={m.id} className="bg-card rounded-2xl p-3 card-shadow border border-border/50">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1 min-w-0">
-                        <h3 className="text-sm font-bold text-foreground">{m.title}</h3>
+                        <div className="flex items-center gap-1.5">
+                          {m.file_name ? <FileIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" /> : <LinkIcon className="h-3.5 w-3.5 text-primary flex-shrink-0" />}
+                          <h3 className="text-sm font-bold text-foreground truncate">{m.title}</h3>
+                        </div>
                         {m.description && <p className="text-[11px] text-muted-foreground mt-1">{m.description}</p>}
                         {m.url && (
-                          <a href={m.url} target="_blank" rel="noopener noreferrer" className="text-[11px] text-primary font-bold mt-1.5 inline-flex items-center gap-1 hover:underline">
-                            <LinkIcon className="h-2.5 w-2.5" /> Open link
+                          <a href={m.url} target="_blank" rel="noopener noreferrer" download={m.file_name || true}
+                            className="text-[11px] text-primary font-bold mt-1.5 inline-flex items-center gap-1 hover:underline">
+                            <Download className="h-2.5 w-2.5" /> {m.file_name ? `Download ${m.file_name}` : "Open link"}
+                            {m.file_size ? <span className="text-muted-foreground font-normal"> · {(m.file_size / 1024 / 1024).toFixed(1)}MB</span> : null}
                           </a>
                         )}
                       </div>
@@ -457,13 +468,49 @@ const TeachSubjectDashboard = () => {
 
       {/* Material dialog */}
       <Dialog open={matDlg} onOpenChange={setMatDlg}>
-        <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>New Material</DialogTitle></DialogHeader>
+        <DialogContent className="max-w-md rounded-2xl">
+          <DialogHeader><DialogTitle className="flex items-center gap-2"><BookMarked className="h-4 w-4 text-primary" /> Upload Module</DialogTitle></DialogHeader>
           <div className="space-y-3">
-            <div><Label>Title</Label><Input value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} /></div>
-            <div><Label>Description</Label><Textarea rows={3} value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} /></div>
-            <div><Label>URL (optional)</Label><Input placeholder="https://…" value={matForm.url} onChange={(e) => setMatForm({ ...matForm, url: e.target.value })} /></div>
-            <Button className="w-full" onClick={saveMaterial}><Save className="h-4 w-4 mr-1" /> Save</Button>
+            <div>
+              <Label className="text-xs">Module Title</Label>
+              <Input placeholder="e.g. Chapter 3 — Photosynthesis" value={matForm.title} onChange={(e) => setMatForm({ ...matForm, title: e.target.value })} />
+            </div>
+            <div>
+              <Label className="text-xs">Description (optional)</Label>
+              <Textarea rows={2} placeholder="What's inside this module?" value={matForm.description} onChange={(e) => setMatForm({ ...matForm, description: e.target.value })} />
+            </div>
+
+            <div className="rounded-xl border border-dashed border-primary/40 bg-primary/5 p-3 space-y-2">
+              <Label className="text-[10px] uppercase font-bold text-primary tracking-wide">📎 Module File</Label>
+              <input ref={matFileRef} type="file" accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,image/*" className="hidden" onChange={uploadMaterialFile} />
+              {matForm.file_name ? (
+                <div className="flex items-center justify-between gap-2 bg-card rounded-lg border border-success/30 p-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <FileIcon className="h-3.5 w-3.5 text-success flex-shrink-0" />
+                    <span className="text-[11px] font-bold truncate">{matForm.file_name}</span>
+                    {matForm.file_size ? <span className="text-[9px] text-muted-foreground">{(matForm.file_size / 1024 / 1024).toFixed(1)}MB</span> : null}
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-6 text-[10px]" onClick={() => setMatForm({ ...matForm, url: "", file_name: "", file_type: "", file_size: null })}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <Button type="button" variant="outline" className="w-full rounded-lg text-xs h-9 border-primary/40" disabled={matUploading} onClick={() => matFileRef.current?.click()}>
+                  {matUploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Upload className="h-3.5 w-3.5 mr-1" />}
+                  {matUploading ? "Uploading…" : "Choose file (PDF, DOC, PPT — max 50MB)"}
+                </Button>
+              )}
+              <p className="text-[9px] text-muted-foreground">Only members of <b>{meta?.section?.name}</b> will see and download this.</p>
+            </div>
+
+            <div>
+              <Label className="text-xs">…or paste a link</Label>
+              <Input placeholder="https://…" value={matForm.file_name ? "" : matForm.url} disabled={!!matForm.file_name} onChange={(e) => setMatForm({ ...matForm, url: e.target.value })} />
+            </div>
+
+            <Button className="w-full rounded-xl h-10 font-bold" onClick={saveMaterial} disabled={matUploading}>
+              <Save className="h-4 w-4 mr-1" /> Publish Module
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
