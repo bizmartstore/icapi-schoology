@@ -265,6 +265,9 @@ export type Database = {
           created_at: string
           created_by: string
           description: string | null
+          file_name: string | null
+          file_size: number | null
+          file_type: string | null
           id: string
           section_subject_id: string
           title: string
@@ -275,6 +278,9 @@ export type Database = {
           created_at?: string
           created_by: string
           description?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
           id?: string
           section_subject_id: string
           title: string
@@ -285,6 +291,9 @@ export type Database = {
           created_at?: string
           created_by?: string
           description?: string | null
+          file_name?: string | null
+          file_size?: number | null
+          file_type?: string | null
           id?: string
           section_subject_id?: string
           title?: string
