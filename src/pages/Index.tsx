@@ -189,14 +189,6 @@ const Index = () => {
           <ModulesShowcase />
         </div>
 
-        {isLoggedIn && (
-          <div className="px-4 py-3 bg-card mt-2 border-t border-border">
-            <Button variant="outline" size="sm" className="w-full rounded-md text-xs font-bold border-primary text-primary hover:bg-primary/5" onClick={signOut}>
-              <LogOut className="h-3.5 w-3.5 mr-1.5" /> Sign Out
-            </Button>
-          </div>
-        )}
-
         <LMSFooter />
       </div>
     </div>
