@@ -1,18 +1,15 @@
-import { Search, Bell, MessageSquare, LogIn, BookMarked } from "lucide-react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
+import { Search, MessageSquare, LogIn, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
+import NotificationsPopover from "./NotificationsPopover";
+import ProfilePopover from "./ProfilePopover";
 
 const LMSHeader = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
-
-  const initials = profile
-    ? `${profile.first_name.charAt(0)}${profile.last_name.charAt(0)}`
-    : "?";
 
   return (
     <header className="sticky top-0 z-50 sacred-gradient px-4 pt-3 pb-2.5 shadow-md border-b border-accent/30">
@@ -29,20 +26,15 @@ const LMSHeader = () => {
         <div className="flex-1" />
         {isLoggedIn ? (
           <div className="flex items-center gap-0.5">
-            <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/messages")}>
+            <button
+              className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors"
+              onClick={() => toast.info("Messages coming soon! 💬")}
+              aria-label="Messages"
+            >
               <MessageSquare className="h-5 w-5 text-primary-foreground" />
-              <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-primary-foreground border border-primary" />
             </button>
-            <button className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors" onClick={() => navigate("/notifications")}>
-              <Bell className="h-5 w-5 text-primary-foreground" />
-              <span className="absolute top-0.5 right-0.5">
-                <Badge className="h-4 min-w-4 px-1 text-[8px] bg-primary-foreground text-primary border-0 font-extrabold">3</Badge>
-              </span>
-            </button>
-            <Avatar className="h-7 w-7 border-2 border-primary-foreground/30 ml-1 cursor-pointer">
-              <AvatarImage src="" />
-              <AvatarFallback className="bg-primary-foreground text-primary text-[10px] font-bold">{initials}</AvatarFallback>
-            </Avatar>
+            <NotificationsPopover />
+            <ProfilePopover />
           </div>
         ) : (
           <Button size="sm" className="rounded-full text-[11px] h-7 bg-primary-foreground text-primary hover:bg-primary-foreground/90 font-bold px-3 shadow-none" onClick={() => navigate("/login")}>
