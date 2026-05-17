@@ -10,12 +10,12 @@ import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock, Library } from "lucide-react";
+import { LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock, Library } from "lucide-react";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
-  const { profile, roles, signOut, user } = useAuth();
+  const { profile, roles, user } = useAuth();
   const navigate = useNavigate();
   const { isMemberOfAny } = useSectionMembership();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
