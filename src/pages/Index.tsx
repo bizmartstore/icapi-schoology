@@ -5,12 +5,12 @@ import MySubjectsBySection from "@/components/lms/MySubjectsBySection";
 import SectionsList from "@/components/lms/SectionsList";
 import UpcomingTasks from "@/components/lms/UpcomingTasks";
 import Announcements from "@/components/lms/Announcements";
-import TopPerforming from "@/components/lms/TopPerforming";
+import ModulesShowcase from "@/components/lms/ModulesShowcase";
 import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock } from "lucide-react";
+import { LogOut, LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock, Library } from "lucide-react";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { useNavigate } from "react-router-dom";
 
@@ -181,12 +181,12 @@ const Index = () => {
           <UpcomingTasks />
         </div>
 
-        {/* Top Performing */}
+        {/* Module Library — dynamic across all grade levels */}
         <div className="bg-card mt-2 border-y border-border">
           <div className="px-4 pt-3">
-            <SectionHeader icon={<Star className="h-3.5 w-3.5 text-accent" />} title="Top Performing" />
+            <SectionHeader icon={<Library className="h-3.5 w-3.5 text-accent" />} title="Module Library" />
           </div>
-          <TopPerforming />
+          <ModulesShowcase />
         </div>
 
         {isLoggedIn && (
