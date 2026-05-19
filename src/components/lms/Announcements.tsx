@@ -108,7 +108,7 @@ const Announcements = () => {
       </div>
 
       <Dialog open={!!open} onOpenChange={(o) => !o && setOpen(null)}>
-        <DialogContent className="max-w-sm rounded-2xl">
+        <DialogContent className="max-w-[280px] sm:max-w-xs rounded-2xl max-h-[80vh] overflow-y-auto">
           {open && (
             <>
               <DialogHeader>
