@@ -4,8 +4,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, BookOpen, GraduationCap, CalendarClock, Users, Megaphone, Lock } from "lucide-react";
+import { ArrowLeft, BookOpen, GraduationCap, CalendarClock, Users, Megaphone, Lock, Sparkles } from "lucide-react";
 import LMSHeader from "@/components/lms/LMSHeader";
+import SectionChat from "@/components/lms/SectionChat";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -25,6 +26,7 @@ const SectionDetail = () => {
   const [subjects, setSubjects] = useState<any[]>([]);
   const [memberCount, setMemberCount] = useState(0);
   const [isMember, setIsMember] = useState(false);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -34,6 +36,7 @@ const SectionDetail = () => {
       .channel(`section-${id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects", filter: `section_id=eq.${id}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "class_schedules" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "announcements", filter: `section_id=eq.${id}` }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -46,15 +49,17 @@ const SectionDetail = () => {
     setSection(sec as Section | null);
 
     if (sec) {
-      const [{ data: adv }, { data: ss }, { count }, mem] = await Promise.all([
+      const [{ data: adv }, { data: ss }, { count }, mem, { data: ann }] = await Promise.all([
         supabase.from("profiles").select("user_id, first_name, last_name, email").eq("user_id", sec.teacher_id).maybeSingle(),
         supabase.from("section_subjects").select("*").eq("section_id", id),
         supabase.from("section_members").select("*", { count: "exact", head: true }).eq("section_id", id),
         user ? supabase.from("section_members").select("id").eq("section_id", id).eq("student_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
+        supabase.from("announcements").select("*").eq("section_id", id).eq("scope", "section").eq("is_active", true).order("created_at", { ascending: false }),
       ]);
       setAdviser(adv);
       setMemberCount(count || 0);
       setIsMember(!!(mem as any)?.data);
+      setAnnouncements(ann || []);
 
       const ssList = ss || [];
       const subjectIds = [...new Set(ssList.map((s: any) => s.subject_id))];
@@ -186,10 +191,42 @@ const SectionDetail = () => {
           </div>
 
           {isMember && (
-            <p className="text-[11px] text-center text-muted-foreground bg-muted/20 rounded-xl p-2">
-              <Megaphone className="inline h-3 w-3 mr-1" />
-              Section announcements appear in the homepage Announcements section.
-            </p>
+            <>
+              {/* Section Announcements */}
+              <div>
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Megaphone className="h-4 w-4 text-info" />
+                  <h2 className="text-sm font-bold text-foreground">Section Announcements ({announcements.length})</h2>
+                </div>
+                {announcements.length === 0 ? (
+                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-xl p-3 text-center">
+                    No section announcements yet.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {announcements.map((a) => (
+                      <div key={a.id} className="bg-card rounded-2xl p-3 card-shadow border border-border/50">
+                        <div className="flex items-start gap-2">
+                          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-info to-info/70 flex items-center justify-center flex-shrink-0">
+                            <Sparkles className="h-4 w-4 text-primary-foreground" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-foreground">{a.title}</p>
+                            <p className="text-[10px] text-muted-foreground mb-1">{a.from_name || "Adviser"} · {new Date(a.created_at).toLocaleDateString()}</p>
+                            <p className="text-xs text-foreground whitespace-pre-wrap leading-relaxed">
+                              {a.full_content || a.preview_text}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Realtime Chat */}
+              <SectionChat sectionId={section.id} canPost={isMember || section.teacher_id === user?.id} />
+            </>
           )}
         </div>
       </div>
