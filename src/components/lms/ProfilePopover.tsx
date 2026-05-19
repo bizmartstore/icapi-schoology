@@ -1,9 +1,10 @@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import { LogOut, Mail, Phone, School, GraduationCap, ShieldCheck, Calendar, ListChecks } from "lucide-react";
+import { LogOut, Mail, Phone, School, GraduationCap, ShieldCheck, Calendar, ListChecks, Share2 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { toast } from "sonner";
 
 const ProfilePopover = () => {
   const { profile, roles, signOut } = useAuth();
@@ -48,6 +49,26 @@ const ProfilePopover = () => {
           </Button>
           <Button variant="outline" size="sm" className="h-8 text-[11px] font-bold" onClick={() => navigate("/grades")}>
             <ListChecks className="h-3.5 w-3.5 mr-1" /> Grades
+          </Button>
+        </div>
+        <div className="px-3 pb-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full h-8 text-[11px] font-bold"
+            onClick={async () => {
+              const u = new URL(window.location.href);
+              u.searchParams.set("guest", "1");
+              const link = u.toString();
+              try {
+                await navigator.clipboard.writeText(link);
+                toast.success("Share link copied — recipient will start signed out");
+              } catch {
+                toast.info(link);
+              }
+            }}
+          >
+            <Share2 className="h-3.5 w-3.5 mr-1.5" /> Copy Share Link
           </Button>
         </div>
         <div className="px-3 pb-3">
