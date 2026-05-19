@@ -36,6 +36,13 @@ const QuickAccessMenu = () => {
   const isStudent = roles.includes("student");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
+  const resumeTimer = useRef<number | null>(null);
+
+  const pauseFor = (ms = 2500) => {
+    setPaused(true);
+    if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
+    resumeTimer.current = window.setTimeout(() => setPaused(false), ms);
+  };
 
   const handleClick = (item: MenuItemX) => {
     if (item.comingSoon) {
@@ -70,19 +77,22 @@ const QuickAccessMenu = () => {
     // Start at end so visible motion is right-to-left
     el.scrollLeft = el.scrollWidth / 2;
     let animId: number;
-    const speed = 0.04; // very slow
+    const speed = 0.35; // slow but visible
 
     const step = () => {
       if (!paused && el) {
-        el.scrollLeft -= speed;
-        if (el.scrollLeft <= 0) {
-          el.scrollLeft = el.scrollWidth / 2;
+        el.scrollLeft += speed;
+        if (el.scrollLeft >= el.scrollWidth / 2) {
+          el.scrollLeft = 0;
         }
       }
       animId = requestAnimationFrame(step);
     };
     animId = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(animId);
+    return () => {
+      cancelAnimationFrame(animId);
+      if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
+    };
   }, [paused]);
 
   // Duplicate items for seamless loop
@@ -93,17 +103,19 @@ const QuickAccessMenu = () => {
       <div
         ref={scrollRef}
         className="flex gap-3 px-3 overflow-x-auto scrollbar-hide"
-        onTouchStart={() => setPaused(true)}
-        onTouchEnd={() => setPaused(false)}
+        onTouchStart={() => pauseFor(3000)}
+        onTouchEnd={() => pauseFor(3000)}
+        onWheel={() => pauseFor(2500)}
+        onScroll={() => { if (!paused) pauseFor(2500); }}
         onMouseEnter={() => setPaused(true)}
-        onMouseLeave={() => setPaused(false)}
+        onMouseLeave={() => pauseFor(1500)}
       >
         {loopItems.map((item, idx) => {
           const isActive = location.pathname === item.path;
           return (
             <button
               key={`${item.label}-${idx}`}
-              onClick={() => handleClick(item)}
+              onClick={() => { pauseFor(2500); handleClick(item); }}
               className="flex flex-col items-center gap-1.5 min-w-[60px] transition-all duration-200 active:scale-90"
             >
               <div className={`h-12 w-12 rounded-2xl flex items-center justify-center transition-all shadow-sm ${
