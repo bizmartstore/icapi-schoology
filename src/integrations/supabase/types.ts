@@ -635,6 +635,30 @@ export type Database = {
           },
         ]
       }
+      section_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          section_id: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          section_id: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          section_id?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       section_subjects: {
         Row: {
           created_at: string
