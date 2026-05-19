@@ -150,7 +150,7 @@ const StudentSignupPage = () => {
                     <SelectItem value="Grade 10">Grade 10</SelectItem>
                   </>
                 ) : (
-                  <SelectItem value="" disabled>Select school level first</SelectItem>
+                  <SelectItem value="__none" disabled>Select school level first</SelectItem>
                 )}
               </SelectContent>
             </Select>
