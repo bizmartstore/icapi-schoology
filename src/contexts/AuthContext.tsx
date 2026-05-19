@@ -80,6 +80,21 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
+    // If link was shared with ?guest=1 or #guest, sign out so the recipient
+    // does not inherit the sender's session.
+    try {
+      const url = new URL(window.location.href);
+      const isGuestLink =
+        url.searchParams.get("guest") === "1" ||
+        url.hash.includes("guest");
+      if (isGuestLink) {
+        supabase.auth.signOut();
+        url.searchParams.delete("guest");
+        url.hash = url.hash.replace(/#?guest/, "");
+        window.history.replaceState({}, "", url.toString());
+      }
+    } catch {}
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
