@@ -347,6 +347,82 @@ const AdminDashboard = () => {
               </div>
             )}
 
+            {/* SECTIONS TAB - admin assigns subject teachers per section */}
+            {tab === "sections" && (
+              <div className="space-y-3">
+                <h3 className="text-sm font-bold text-foreground">Advisory Sections ({sections.length})</h3>
+                <p className="text-[10px] text-muted-foreground -mt-2">
+                  Only admins can assign subject teachers to a section. Advisers cannot change these.
+                </p>
+                {sections.length === 0 && (
+                  <p className="text-xs text-muted-foreground bg-muted/30 rounded-xl p-3">
+                    No sections have been created by advisers yet.
+                  </p>
+                )}
+                {sections.map((sec) => {
+                  const adv = users.find((u) => u.user_id === sec.teacher_id);
+                  const items = sectionSubjects
+                    .filter((ss) => ss.section_id === sec.id)
+                    .map((ss) => ({ ...ss, subject: subjects.find((s) => s.id === ss.subject_id) }))
+                    .filter((ss) => ss.subject);
+                  return (
+                    <div key={sec.id} className="bg-card rounded-2xl p-3 card-shadow space-y-2">
+                      <div className="flex items-center justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-foreground truncate">{sec.name}</p>
+                          <p className="text-[10px] text-muted-foreground">
+                            {sec.grade_level} · Adviser: {adv ? `${adv.first_name} ${adv.last_name}` : "—"}
+                          </p>
+                        </div>
+                        <Badge variant="outline" className="text-[9px]">{items.length} subj</Badge>
+                      </div>
+                      {items.length === 0 ? (
+                        <p className="text-[10px] text-muted-foreground italic">No subjects in this section.</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {items.map((ss: any) => {
+                            const currentTeacher = users.find((u) => u.user_id === ss.teacher_id);
+                            return (
+                              <div key={ss.id} className="flex items-center gap-2 p-2 rounded-xl bg-muted/40">
+                                <div className={`h-7 w-7 rounded-lg ${ss.subject.color} flex items-center justify-center flex-shrink-0`}>
+                                  <BookOpen className="h-3.5 w-3.5 text-primary-foreground" />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-xs font-bold text-foreground truncate">{ss.subject.name}</p>
+                                  <p className="text-[9px] text-muted-foreground truncate">
+                                    Teacher: {currentTeacher ? `${currentTeacher.first_name} ${currentTeacher.last_name}` : "Unassigned"}
+                                  </p>
+                                </div>
+                                <Select
+                                  value={ss.teacher_id || ""}
+                                  onValueChange={(v) => updateSectionSubjectTeacher(ss.id, v)}
+                                >
+                                  <SelectTrigger className="h-7 text-[10px] w-[120px] rounded-lg">
+                                    <SelectValue placeholder="Assign" />
+                                  </SelectTrigger>
+                                  <SelectContent>
+                                    {teachers.length === 0 ? (
+                                      <SelectItem value="__none" disabled>No approved teachers</SelectItem>
+                                    ) : (
+                                      teachers.map((t) => (
+                                        <SelectItem key={t.user_id} value={t.user_id} className="text-xs">
+                                          {t.last_name}, {t.first_name}
+                                        </SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
             {/* ANNOUNCEMENTS TAB */}
             {tab === "announcements" && (
               <div className="space-y-3">
