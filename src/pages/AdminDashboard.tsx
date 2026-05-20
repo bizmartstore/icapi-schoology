@@ -352,6 +352,8 @@ const AdminDashboard = () => {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <h3 className="text-sm font-bold text-foreground">Announcements ({announcements.length})</h3>
+
+            {/* SECTIONS TAB */}
                   <Button size="sm" className="rounded-xl text-xs" onClick={() => openCreate("announcements")}>
                     <Plus className="h-3 w-3 mr-1" /> Add
                   </Button>
