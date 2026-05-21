@@ -19,8 +19,8 @@ const LMSHeader = () => {
             <BookMarked className="h-4 w-4 text-accent" />
           </div>
           <div className="leading-none">
-            <span className="block font-serif-display text-[17px] font-bold text-primary-foreground tracking-tight">EduLumen</span>
-            <span className="block text-[8px] font-bold uppercase tracking-[0.2em] text-accent">Catholic LMS</span>
+            <span className="block font-serif-display text-[17px] font-bold text-primary-foreground tracking-tight">ICAPI</span>
+            <span className="block text-[8px] font-bold uppercase tracking-[0.2em] text-accent">ICAPI LMS</span>
           </div>
         </div>
         <div className="flex-1" />

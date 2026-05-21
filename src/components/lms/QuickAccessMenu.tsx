@@ -37,6 +37,9 @@ const QuickAccessMenu = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [paused, setPaused] = useState(false);
   const resumeTimer = useRef<number | null>(null);
+  const isProgrammaticScroll = useRef(false);
+  const pausedRef = useRef(false);
+  useEffect(() => { pausedRef.current = paused; }, [paused]);
 
   const pauseFor = (ms = 2500) => {
     setPaused(true);
@@ -70,20 +73,29 @@ const QuickAccessMenu = () => {
       ]
     : menuItems;
 
-  // Auto-scroll marquee effect — RTL (right to left), much slower
+  // Auto-scroll marquee effect — RTL (right to left), slow but visible.
+  // Uses a fractional accumulator since browsers round scrollLeft to integers,
+  // and guards onScroll handler against programmatic scroll feedback loops.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
-    // Start at end so visible motion is right-to-left
-    el.scrollLeft = el.scrollWidth / 2;
+    let acc = 0;
     let animId: number;
-    const speed = 0.35; // slow but visible
+    const speed = 0.25; // px per frame (~15px/s at 60fps) — gentle
 
     const step = () => {
-      if (!paused && el) {
-        el.scrollLeft += speed;
-        if (el.scrollLeft >= el.scrollWidth / 2) {
-          el.scrollLeft = 0;
+      if (!pausedRef.current && el) {
+        acc += speed;
+        if (acc >= 1) {
+          const inc = Math.floor(acc);
+          acc -= inc;
+          isProgrammaticScroll.current = true;
+          const half = el.scrollWidth / 2;
+          let next = el.scrollLeft + inc;
+          if (half > 0 && next >= half) next -= half;
+          el.scrollLeft = next;
+          // release flag next tick
+          requestAnimationFrame(() => { isProgrammaticScroll.current = false; });
         }
       }
       animId = requestAnimationFrame(step);
@@ -93,7 +105,7 @@ const QuickAccessMenu = () => {
       cancelAnimationFrame(animId);
       if (resumeTimer.current) window.clearTimeout(resumeTimer.current);
     };
-  }, [paused]);
+  }, []);
 
   // Duplicate items for seamless loop
   const loopItems = [...allItems, ...allItems];
@@ -106,7 +118,7 @@ const QuickAccessMenu = () => {
         onTouchStart={() => pauseFor(3000)}
         onTouchEnd={() => pauseFor(3000)}
         onWheel={() => pauseFor(2500)}
-        onScroll={() => { if (!paused) pauseFor(2500); }}
+        onScroll={() => { if (!isProgrammaticScroll.current) pauseFor(2500); }}
         onMouseEnter={() => setPaused(true)}
         onMouseLeave={() => pauseFor(1500)}
       >
