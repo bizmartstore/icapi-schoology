@@ -37,7 +37,20 @@ This creates all tables, RLS policies, RPCs (`grant_admin_role`, `submit_quiz`),
 
 ### 3. Auth settings (recommended)
 
-In Dashboard → **Authentication → Providers → Email**, turn **off** “Confirm email” so signup can create a profile immediately (the app inserts into `profiles` right after `signUp`).
+In Dashboard → **Authentication → Providers → Email**:
+
+- Turn **off** “Confirm email” so signup can create a profile immediately (the app inserts into `profiles` right after `signUp`).
+- Keep **Email provider** enabled.
+
+### 3b. Profile bootstrap migration (required once)
+
+After pulling the latest code, apply migrations so signup creates profiles reliably (including the bootstrap admin account):
+
+```bash
+npm run supabase:push
+```
+
+This adds an auth trigger and `create_user_profile` RPC. The email `sheethappenswithjaa@gmail.com` is auto-approved and granted admin on signup/login.
 
 ### 4. Run the app
 

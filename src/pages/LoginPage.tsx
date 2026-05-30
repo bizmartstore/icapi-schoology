@@ -6,6 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
 import { LogIn } from "lucide-react";
+import { ensureBootstrapAdmin } from "@/lib/signup-profile";
+import { isBootstrapAdmin } from "@/lib/auth-config";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -24,7 +26,8 @@ const LoginPage = () => {
       const { data, error } = await supabase.auth.signInWithPassword({ email, password });
       if (error) throw error;
 
-      // Check approval status
+      await ensureBootstrapAdmin(data.user.id, data.user.email);
+
       const { data: profile } = await supabase
         .from("profiles")
         .select("approval_status, user_type")
@@ -37,7 +40,7 @@ const LoginPage = () => {
         return;
       }
 
-      if (profile.approval_status !== "approved") {
+      if (profile.approval_status !== "approved" && !isBootstrapAdmin(data.user.email)) {
         await supabase.auth.signOut();
         toast.error(
           profile.user_type === "teacher"
@@ -48,11 +51,10 @@ const LoginPage = () => {
         return;
       }
 
-      // Check if admin grant is pending (restricted to authorized email)
       const pendingAdmin = sessionStorage.getItem("pending_admin_grant");
       if (pendingAdmin === "true") {
         sessionStorage.removeItem("pending_admin_grant");
-        if (data.user.email?.toLowerCase() === "sheethappenswithjaa@gmail.com") {
+        if (isBootstrapAdmin(data.user.email)) {
           const { error: rpcError } = await supabase.rpc("grant_admin_role", { _user_id: data.user.id });
           if (rpcError) {
             toast.error("Login successful but failed to grant admin: " + rpcError.message);
@@ -64,6 +66,12 @@ const LoginPage = () => {
         } else {
           toast.error("Admin access is restricted to the authorized account.");
         }
+      }
+
+      if (isBootstrapAdmin(data.user.email)) {
+        toast.success("Welcome back, admin!");
+        navigate("/admin");
+        return;
       }
 
       toast.success("Login successful!");

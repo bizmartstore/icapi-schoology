@@ -9,6 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { UserPlus, GraduationCap, BookOpen } from "lucide-react";
+import { isBootstrapAdmin } from "@/lib/auth-config";
 
 type ProfileTab = "student" | "teacher";
 
@@ -64,20 +65,23 @@ const CompleteProfilePage = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("profiles").insert({
-        user_id: user.id,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        contact_number: contactNumber,
-        user_type: "student" as const,
-        school,
-        grade_level: gradeLevel,
-        school_level: schoolLevel,
+      const { error } = await supabase.rpc("create_user_profile", {
+        _first_name: firstName,
+        _last_name: lastName,
+        _contact_number: contactNumber,
+        _user_type: "student",
+        _school: school,
+        _grade_level: gradeLevel,
+        _school_level: schoolLevel,
       });
       if (error) throw error;
 
       await refreshProfile();
+      if (isBootstrapAdmin(email)) {
+        toast.success("Admin profile saved! You can log in now.");
+        navigate("/");
+        return;
+      }
       toast.success("Profile saved! Please wait for teacher approval before using the app.");
       navigate("/login");
       await signOut();
@@ -100,18 +104,21 @@ const CompleteProfilePage = () => {
 
     setLoading(true);
     try {
-      const { error } = await supabase.from("profiles").insert({
-        user_id: user.id,
-        first_name: firstName,
-        last_name: lastName,
-        email,
-        contact_number: contactNumber,
-        user_type: "teacher" as const,
-        subject_taught: subjectTaught,
+      const { error } = await supabase.rpc("create_user_profile", {
+        _first_name: firstName,
+        _last_name: lastName,
+        _contact_number: contactNumber,
+        _user_type: "teacher",
+        _subject_taught: subjectTaught,
       });
       if (error) throw error;
 
       await refreshProfile();
+      if (isBootstrapAdmin(email)) {
+        toast.success("Admin profile saved! You can log in now.");
+        navigate("/");
+        return;
+      }
       toast.success("Profile saved! Please wait for admin approval before using the app.");
       navigate("/login");
       await signOut();

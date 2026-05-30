@@ -918,6 +918,19 @@ export type Database = {
         Returns: Database["public"]["Enums"]["approval_status"]
       }
       grant_admin_role: { Args: { _user_id: string }; Returns: boolean }
+      create_user_profile: {
+        Args: {
+          _first_name: string
+          _last_name: string
+          _contact_number: string
+          _user_type: Database["public"]["Enums"]["user_type"]
+          _school?: string | null
+          _grade_level?: string | null
+          _school_level?: Database["public"]["Enums"]["school_level"] | null
+          _subject_taught?: string | null
+        }
+        Returns: string
+      }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]

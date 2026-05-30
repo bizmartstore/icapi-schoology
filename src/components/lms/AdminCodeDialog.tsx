@@ -8,9 +8,7 @@ import { toast } from "sonner";
 import { Shield } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-
-const ADMIN_CODE = "ADMIN_08";
-const ADMIN_EMAIL = "sheethappenswithjaa@gmail.com";
+import { ADMIN_CODE, isBootstrapAdmin } from "@/lib/auth-config";
 
 type Props = {
   open: boolean;
@@ -34,11 +32,11 @@ const AdminCodeDialog = ({ open, onOpenChange }: Props) => {
       sessionStorage.setItem("pending_admin_grant", "true");
       onOpenChange(false);
       setCode("");
-      toast.info(`Please log in with ${ADMIN_EMAIL} to access admin.`);
+      toast.info(`Please log in with the authorized admin email to access admin.`);
       navigate("/login");
       return;
     }
-    if (user.email?.toLowerCase() !== ADMIN_EMAIL) {
+    if (!isBootstrapAdmin(user.email)) {
       toast.error("Admin access is restricted to the authorized account only.");
       setCode("");
       return;

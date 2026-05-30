@@ -8,6 +8,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { UserPlus, ArrowLeft, GraduationCap, BookOpen } from "lucide-react";
+import { signUpWithProfile } from "@/lib/signup-profile";
+import { isBootstrapAdmin } from "@/lib/auth-config";
 
 type SignupTab = "student" | "teacher";
 
@@ -82,26 +84,22 @@ const SignupPage = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      if (!data.user) throw new Error("Signup failed");
-
-      const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: data.user.id,
+      await signUpWithProfile(email, password, {
         first_name: firstName,
         last_name: lastName,
-        email,
         contact_number: contactNumber,
-        user_type: "student" as const,
+        user_type: "student",
         school,
         grade_level: gradeLevel,
         school_level: schoolLevel,
       });
 
-      if (profileError) throw profileError;
-
       await supabase.auth.signOut();
-      toast.success("Account created! Please wait for teacher approval before logging in.");
+      toast.success(
+        isBootstrapAdmin(email)
+          ? "Admin account created! You can log in now."
+          : "Account created! Please wait for teacher approval before logging in."
+      );
       navigate("/login");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Signup failed";
@@ -123,24 +121,20 @@ const SignupPage = () => {
 
     setLoading(true);
     try {
-      const { data, error } = await supabase.auth.signUp({ email, password });
-      if (error) throw error;
-      if (!data.user) throw new Error("Signup failed");
-
-      const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: data.user.id,
+      await signUpWithProfile(email, password, {
         first_name: firstName,
         last_name: lastName,
-        email,
         contact_number: contactNumber,
-        user_type: "teacher" as const,
+        user_type: "teacher",
         subject_taught: subjectTaught,
       });
 
-      if (profileError) throw profileError;
-
       await supabase.auth.signOut();
-      toast.success("Account created! Please wait for admin approval before logging in.");
+      toast.success(
+        isBootstrapAdmin(email)
+          ? "Admin account created! You can log in now."
+          : "Account created! Please wait for admin approval before logging in."
+      );
       navigate("/login");
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : "Signup failed";
