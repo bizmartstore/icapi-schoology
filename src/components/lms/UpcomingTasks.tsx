@@ -92,7 +92,7 @@ const UpcomingTasks = () => {
     setLoading(true);
 
     // 1. Get all section_subjects in joined sections
-    const { data: ssRows } = await api
+    const { data: ssRows } = await supabase
       .from("section_subjects")
       .select("id, subject_id, section_id")
       .in("section_id", memberSectionIds);
@@ -182,7 +182,7 @@ const UpcomingTasks = () => {
   useEffect(() => {
     load();
     if (!user) return;
-    const ch = api
+    const ch = supabase
       .channel("upcoming-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "quizzes" }, load)

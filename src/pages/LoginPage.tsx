@@ -25,7 +25,7 @@ const LoginPage = () => {
       if (error) throw error;
 
       // Check approval status
-      const { data: profile } = await api
+      const { data: profile } = await supabase
         .from("profiles")
         .select("approval_status, user_type")
         .eq("user_id", data.user.id)

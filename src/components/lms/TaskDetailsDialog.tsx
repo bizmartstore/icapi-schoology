@@ -137,7 +137,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
         const [{ data: act }, sub] = await Promise.all([
           supabase.from("activities").select("*").eq("id", item.id).maybeSingle(),
           user
-            ? api
+            ? supabase
                 .from("activity_submissions")
                 .select("*")
                 .eq("activity_id", item.id)
@@ -154,7 +154,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
         const [{ data: quiz }, att] = await Promise.all([
           supabase.from("quizzes").select("*").eq("id", item.id).maybeSingle(),
           user
-            ? api
+            ? supabase
                 .from("quiz_attempts")
                 .select("*")
                 .eq("quiz_id", item.id)
@@ -203,7 +203,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
     const payload: any = { activity_id: item.id, student_id: user.id };
     if (note.trim()) payload.note = note.trim();
     if (fileUrl) payload.url = fileUrl;
-    const { data, error } = await api
+    const { data, error } = await supabase
       .from("activity_submissions")
       .insert(payload)
       .select()
@@ -223,7 +223,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
     if (!url) return;
     if (isSubmitted) {
       // Update existing submission with new URL
-      const { error } = await api
+      const { error } = await supabase
         .from("activity_submissions")
         .update({ url, note: note.trim() || null })
         .eq("activity_id", item.id)
@@ -241,7 +241,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
   const undoSubmitted = async () => {
     if (!user) return;
     setWorking(true);
-    const { error } = await api
+    const { error } = await supabase
       .from("activity_submissions")
       .delete()
       .eq("activity_id", item.id)

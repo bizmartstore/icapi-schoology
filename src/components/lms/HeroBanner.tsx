@@ -36,7 +36,7 @@ const HeroBanner = () => {
 
   useEffect(() => {
     const loadBanners = async () => {
-      const { data } = await api
+      const { data } = await supabase
         .from("banners")
         .select("*")
         .eq("is_active", true)
@@ -48,7 +48,7 @@ const HeroBanner = () => {
 
     loadBanners();
 
-    const channel = api
+    const channel = supabase
       .channel("hero-banners")
       .on("postgres_changes", { event: "*", schema: "public", table: "banners" }, () => {
         loadBanners();
@@ -115,7 +115,7 @@ const HeroBanner = () => {
             <span className="text-[9px] font-bold uppercase tracking-[0.2em] text-accent">Ad Majorem Dei Gloriam</span>
           </div>
           <h1 className="font-serif-display text-[28px] sm:text-[36px] font-bold leading-tight text-primary-foreground drop-shadow-lg">
-            Lumen <span className="shimmer-gold">Sapientiae</span>
+            Lumen <span className="shimmer-gold">Ssupabaseentiae</span>
           </h1>
           <p className="text-[11px] sm:text-[12px] font-medium text-primary-foreground/85 mt-1 max-w-md">
             Faith. Knowledge. Service. — A Catholic learning community guiding minds and forming hearts.

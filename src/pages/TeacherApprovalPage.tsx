@@ -42,7 +42,7 @@ const TeacherApprovalPage = () => {
 
   const fetchStudents = async () => {
     setLoading(true);
-    const { data: pending } = await api
+    const { data: pending } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_type", "student")
@@ -50,7 +50,7 @@ const TeacherApprovalPage = () => {
       .order("created_at", { ascending: false });
     setPendingStudents((pending as StudentProfile[]) || []);
 
-    const { data: approved } = await api
+    const { data: approved } = await supabase
       .from("profiles")
       .select("*")
       .eq("user_type", "student")
@@ -61,7 +61,7 @@ const TeacherApprovalPage = () => {
   };
 
   const handleApproval = async (userId: string, status: "approved" | "rejected") => {
-    const { error } = await api
+    const { error } = await supabase
       .from("profiles")
       .update({ approval_status: status, approved_by: user?.id })
       .eq("user_id", userId);

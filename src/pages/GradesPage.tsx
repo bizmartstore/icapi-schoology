@@ -41,7 +41,7 @@ const GradesPage = () => {
 
       setLoading(true);
 
-      const { data: ssRows } = await api
+      const { data: ssRows } = await supabase
         .from("section_subjects")
         .select("id, subject_id")
         .in("section_id", memberSectionIds);
