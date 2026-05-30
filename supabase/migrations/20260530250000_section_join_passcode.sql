@@ -1,12 +1,12 @@
 -- 4-digit passcode required to request joining a section (hash never exposed to clients)
 
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA extensions;
 
 ALTER TABLE public.sections
   ADD COLUMN IF NOT EXISTS join_passcode_hash TEXT;
 
 UPDATE public.sections
-SET join_passcode_hash = crypt('0000', gen_salt('bf'))
+SET join_passcode_hash = extensions.crypt('0000', extensions.gen_salt('bf'))
 WHERE join_passcode_hash IS NULL;
 
 REVOKE SELECT (join_passcode_hash) ON public.sections FROM anon, authenticated;
@@ -15,13 +15,13 @@ CREATE OR REPLACE FUNCTION public.hash_join_passcode(p_passcode text)
 RETURNS text
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 BEGIN
   IF p_passcode IS NULL OR p_passcode !~ '^\d{4}$' THEN
     RAISE EXCEPTION 'Passcode must be exactly 4 digits';
   END IF;
-  RETURN crypt(p_passcode, gen_salt('bf'));
+  RETURN extensions.crypt(p_passcode, extensions.gen_salt('bf'));
 END;
 $$;
 
@@ -32,7 +32,7 @@ CREATE OR REPLACE FUNCTION public.set_section_join_passcode(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 BEGIN
   IF auth.uid() IS NULL THEN
@@ -60,7 +60,7 @@ RETURNS boolean
 LANGUAGE sql
 STABLE
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
   SELECT EXISTS (
     SELECT 1
@@ -68,7 +68,7 @@ AS $$
     WHERE s.id = p_section_id
       AND s.is_active = true
       AND s.join_passcode_hash IS NOT NULL
-      AND s.join_passcode_hash = crypt(p_passcode, s.join_passcode_hash)
+      AND s.join_passcode_hash = extensions.crypt(p_passcode, s.join_passcode_hash)
   );
 $$;
 
@@ -79,7 +79,7 @@ CREATE OR REPLACE FUNCTION public.request_section_join(
 RETURNS void
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public
+SET search_path = public, extensions
 AS $$
 DECLARE
   v_status public.approval_status;
