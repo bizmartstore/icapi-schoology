@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import LMSHeader from "@/components/lms/LMSHeader";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
+import ChatMessageBubble, { type ChatMessage, type ChatProfile } from "@/components/lms/ChatMessageBubble";
 import { Send, Inbox, Lock } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUnreadMessagesContext } from "@/contexts/UnreadMessagesContext";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
 
 type SectionConv = {
@@ -17,9 +19,6 @@ type SectionConv = {
   time: string;
   unread: number;
 };
-
-type Msg = { id: string; user_id: string; content: string; created_at: string };
-type Prof = { user_id: string; first_name: string; last_name: string };
 
 const fmtRelative = (iso: string) => {
   const diff = Date.now() - new Date(iso).getTime();
@@ -34,20 +33,22 @@ const fmtRelative = (iso: string) => {
 
 const MessagesPage = () => {
   const navigate = useNavigate();
-  const { user, roles } = useAuth();
+  const { user, profile, roles } = useAuth();
   const { memberSectionIds, isMemberOfAny } = useSectionMembership();
+  const { unreadBySection, setActiveSectionId, markSectionRead } = useUnreadMessagesContext();
   const isTeacher = roles.includes("teacher");
 
   const [conversations, setConversations] = useState<SectionConv[]>([]);
   const [selectedSection, setSelectedSection] = useState<string | null>(null);
   const [selectedName, setSelectedName] = useState("");
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, Prof>>({});
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ChatProfile>>({});
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [teacherSectionIds, setTeacherSectionIds] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const sectionNamesRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const loadTeacherSections = async () => {
@@ -67,6 +68,29 @@ const MessagesPage = () => {
   const sectionIds = isTeacher ? teacherSectionIds : memberSectionIds;
   const hasSections = sectionIds.length > 0;
 
+  const buildConversations = (
+    sections: { id: string; name: string }[],
+    lastBySection: Record<string, { content: string; created_at: string; user_id: string }>
+  ): SectionConv[] => {
+    const convs = sections.map((s) => {
+      const last = lastBySection[s.id];
+      return {
+        id: s.id,
+        name: s.name,
+        lastMsg: last?.content || "No messages yet",
+        time: last ? fmtRelative(last.created_at) : "",
+        unread: unreadBySection[s.id] || 0,
+      };
+    });
+    convs.sort((a, b) => {
+      if (a.unread !== b.unread) return b.unread - a.unread;
+      if (a.time && !b.time) return -1;
+      if (!a.time && b.time) return 1;
+      return 0;
+    });
+    return convs;
+  };
+
   useEffect(() => {
     const loadConversations = async () => {
       if (!user || !hasSections) {
@@ -78,6 +102,12 @@ const MessagesPage = () => {
       setLoading(true);
 
       const { data: sections } = await supabase.from("sections").select("id, name").in("id", sectionIds);
+      const names: Record<string, string> = {};
+      (sections || []).forEach((s: { id: string; name: string }) => {
+        names[s.id] = s.name;
+      });
+      sectionNamesRef.current = names;
+
       const { data: allMsgs } = await supabase
         .from("section_messages")
         .select("section_id, content, created_at, user_id")
@@ -91,45 +121,73 @@ const MessagesPage = () => {
         }
       });
 
-      const convs: SectionConv[] = (sections || []).map((s: { id: string; name: string }) => {
-        const last = lastBySection[s.id];
-        return {
-          id: s.id,
-          name: s.name,
-          lastMsg: last?.content || "No messages yet",
-          time: last ? fmtRelative(last.created_at) : "",
-          unread: last && last.user_id !== user.id ? 1 : 0,
-        };
-      });
-
-      convs.sort((a, b) => {
-        if (a.time && !b.time) return -1;
-        if (!a.time && b.time) return 1;
-        return 0;
-      });
-
-      setConversations(convs);
+      setConversations(buildConversations((sections || []) as { id: string; name: string }[], lastBySection));
       setLoading(false);
     };
 
     loadConversations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, sectionIds.join(","), hasSections]);
 
+  useEffect(() => {
+    setConversations((prev) =>
+      prev.map((c) => ({ ...c, unread: unreadBySection[c.id] || 0 })).sort((a, b) => {
+        if (a.unread !== b.unread) return b.unread - a.unread;
+        return 0;
+      })
+    );
+  }, [unreadBySection]);
+
+  useEffect(() => {
     if (!user || !hasSections) return;
+
+    const onNewMessage = (payload: { new: Record<string, unknown> }) => {
+      const m = payload.new as {
+        section_id: string;
+        content: string;
+        created_at: string;
+      };
+      if (!sectionIds.includes(m.section_id)) return;
+
+      setConversations((prev) => {
+        const idx = prev.findIndex((c) => c.id === m.section_id);
+        const name = idx >= 0 ? prev[idx].name : sectionNamesRef.current[m.section_id] || "Section";
+        const unread = unreadBySection[m.section_id] || 0;
+        const updated: SectionConv = {
+          id: m.section_id,
+          name,
+          lastMsg: m.content,
+          time: fmtRelative(m.created_at),
+          unread,
+        };
+        if (idx >= 0) {
+          const next = [...prev];
+          next.splice(idx, 1);
+          next.unshift(updated);
+          return next;
+        }
+        return [updated, ...prev];
+      });
+    };
+
     const ch = supabase
       .channel("messages-inbox")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "section_messages" }, loadConversations)
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "section_messages" }, onNewMessage)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
-  }, [user?.id, sectionIds.join(","), hasSections]);
+  }, [user?.id, sectionIds.join(","), hasSections, unreadBySection]);
 
   const fetchProfiles = async (ids: string[]) => {
     const missing = ids.filter((i) => !profiles[i]);
     if (missing.length === 0) return;
-    const { data } = await supabase.from("profiles").select("user_id, first_name, last_name").in("user_id", missing);
+    const { data } = await supabase
+      .from("profiles")
+      .select("user_id, first_name, last_name, avatar_data")
+      .in("user_id", missing);
     if (data) {
       setProfiles((prev) => {
         const map = { ...prev };
-        (data as Prof[]).forEach((p) => (map[p.user_id] = p));
+        (data as ChatProfile[]).forEach((p) => (map[p.user_id] = p));
         return map;
       });
     }
@@ -142,13 +200,18 @@ const MessagesPage = () => {
       .eq("section_id", sectionId)
       .order("created_at", { ascending: true })
       .limit(200);
-    const list = (data as Msg[]) || [];
+    const list = (data as ChatMessage[]) || [];
     setMessages(list);
     fetchProfiles([...new Set(list.map((m) => m.user_id))]);
   };
 
   useEffect(() => {
-    if (!selectedSection) return;
+    if (!selectedSection) {
+      setActiveSectionId(null);
+      return;
+    }
+    setActiveSectionId(selectedSection);
+    markSectionRead(selectedSection);
     loadMessages(selectedSection);
 
     const ch = supabase
@@ -157,14 +220,18 @@ const MessagesPage = () => {
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "section_messages", filter: `section_id=eq.${selectedSection}` },
         (payload) => {
-          const m = payload.new as Msg;
+          const m = payload.new as ChatMessage;
           setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
           fetchProfiles([m.user_id]);
+          if (m.user_id !== user?.id) markSectionRead(selectedSection);
         }
       )
       .subscribe();
 
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      setActiveSectionId(null);
+      supabase.removeChannel(ch);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSection]);
 
@@ -175,16 +242,19 @@ const MessagesPage = () => {
   const openChat = (conv: SectionConv) => {
     setSelectedSection(conv.id);
     setSelectedName(conv.name);
+    markSectionRead(conv.id);
   };
 
   const send = async () => {
     const content = text.trim();
     if (!content || !user || !selectedSection) return;
     setSending(true);
+    const senderName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "Member";
     const { error } = await supabase.from("section_messages").insert({
       section_id: selectedSection,
       user_id: user.id,
       content,
+      sender_name: senderName,
     });
     if (!error) setText("");
     setSending(false);
@@ -228,29 +298,22 @@ const MessagesPage = () => {
             </Avatar>
             <div>
               <p className="text-sm font-bold text-foreground">{selectedName}</p>
-              <p className="text-[10px] text-muted-foreground">Section Chat · Realtime</p>
+              <p className="text-[10px] text-muted-foreground">Section Chat · Live</p>
             </div>
           </div>
           <div className="flex-1 p-4 space-y-3 overflow-y-auto">
             {messages.length === 0 ? (
               <p className="text-center text-sm text-muted-foreground mt-8">No messages yet. Say hello! 👋</p>
             ) : (
-              messages.map((msg) => {
-                const mine = msg.user_id === user?.id;
-                const p = profiles[msg.user_id];
-                const name = p ? `${p.first_name} ${p.last_name}` : "Member";
-                return (
-                  <div key={msg.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                    <div className={`max-w-[75%] rounded-2xl px-4 py-2.5 ${
-                      mine ? "bg-primary text-primary-foreground rounded-br-md" : "bg-card card-shadow text-foreground rounded-bl-md"
-                    }`}>
-                      {!mine && <p className="text-[9px] font-bold opacity-80 mb-0.5">{name}</p>}
-                      <p className="text-sm whitespace-pre-wrap break-words">{msg.content}</p>
-                      <p className={`text-[10px] mt-1 ${mine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>{fmtTime(msg.created_at)}</p>
-                    </div>
-                  </div>
-                );
-              })
+              messages.map((msg) => (
+                <ChatMessageBubble
+                  key={msg.id}
+                  message={msg}
+                  profile={profiles[msg.user_id]}
+                  isMine={msg.user_id === user?.id}
+                  fmtTime={fmtTime}
+                />
+              ))
             )}
             <div ref={endRef} />
           </div>
@@ -311,7 +374,9 @@ const MessagesPage = () => {
                     <p className="text-xs text-muted-foreground truncate">{c.lastMsg}</p>
                   </div>
                   {c.unread > 0 && (
-                    <span className="h-5 min-w-5 rounded-full bg-accent text-accent-foreground text-[10px] font-bold flex items-center justify-center px-1.5">{c.unread}</span>
+                    <span className="h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1.5">
+                      {c.unread > 9 ? "9+" : c.unread}
+                    </span>
                   )}
                 </button>
               ))}

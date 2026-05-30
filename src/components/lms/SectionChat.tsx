@@ -1,17 +1,17 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUnreadMessagesContext } from "@/contexts/UnreadMessagesContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { MessageCircle, Send } from "lucide-react";
-
-type Msg = { id: string; user_id: string; content: string; created_at: string };
-type Prof = { user_id: string; first_name: string; last_name: string };
+import ChatMessageBubble, { type ChatMessage, type ChatProfile } from "@/components/lms/ChatMessageBubble";
 
 const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boolean }) => {
-  const { user } = useAuth();
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [profiles, setProfiles] = useState<Record<string, Prof>>({});
+  const { user, profile } = useAuth();
+  const { setActiveSectionId, markSectionRead } = useUnreadMessagesContext();
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [profiles, setProfiles] = useState<Record<string, ChatProfile>>({});
   const [text, setText] = useState("");
   const [sending, setSending] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -19,11 +19,16 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
   const fetchProfiles = async (ids: string[]) => {
     const missing = ids.filter((i) => !profiles[i]);
     if (missing.length === 0) return;
-    const { data } = await supabase.from("profiles").select("user_id, first_name, last_name").in("user_id", missing);
+    const { data } = await supabase
+      .from("profiles")
+      .select("user_id, first_name, last_name, avatar_data")
+      .in("user_id", missing);
     if (data) {
-      const map = { ...profiles };
-      (data as Prof[]).forEach((p) => (map[p.user_id] = p));
-      setProfiles(map);
+      setProfiles((prev) => {
+        const map = { ...prev };
+        (data as ChatProfile[]).forEach((p) => (map[p.user_id] = p));
+        return map;
+      });
     }
   };
 
@@ -34,12 +39,14 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
       .eq("section_id", sectionId)
       .order("created_at", { ascending: true })
       .limit(200);
-    const list = (data as Msg[]) || [];
+    const list = (data as ChatMessage[]) || [];
     setMessages(list);
     fetchProfiles([...new Set(list.map((m) => m.user_id))]);
   };
 
   useEffect(() => {
+    setActiveSectionId(sectionId);
+    markSectionRead(sectionId);
     load();
     const ch = supabase
       .channel(`section-chat-${sectionId}`)
@@ -47,13 +54,17 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
         "postgres_changes",
         { event: "INSERT", schema: "public", table: "section_messages", filter: `section_id=eq.${sectionId}` },
         (payload) => {
-          const m = payload.new as Msg;
+          const m = payload.new as ChatMessage;
           setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
           fetchProfiles([m.user_id]);
+          if (m.user_id !== user?.id) markSectionRead(sectionId);
         }
       )
       .subscribe();
-    return () => { supabase.removeChannel(ch); };
+    return () => {
+      setActiveSectionId(null);
+      supabase.removeChannel(ch);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sectionId]);
 
@@ -65,9 +76,13 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
     const content = text.trim();
     if (!content || !user) return;
     setSending(true);
-    const { error } = await supabase
-      .from("section_messages")
-      .insert({ section_id: sectionId, user_id: user.id, content });
+    const senderName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "Member";
+    const { error } = await supabase.from("section_messages").insert({
+      section_id: sectionId,
+      user_id: user.id,
+      content,
+      sender_name: senderName,
+    });
     if (!error) setText("");
     setSending(false);
   };
@@ -82,26 +97,22 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
       <div className="flex items-center gap-1.5 px-3 py-2 border-b border-border/50 bg-muted/30">
         <MessageCircle className="h-4 w-4 text-primary" />
         <h3 className="text-sm font-bold text-foreground">Section Chat</h3>
-        <span className="ml-auto text-[10px] text-muted-foreground">Realtime</span>
+        <span className="ml-auto text-[10px] text-muted-foreground">Live</span>
       </div>
-      <div className="h-72 overflow-y-auto p-3 space-y-2 bg-muted/10">
+      <div className="h-72 overflow-y-auto p-3 space-y-3 bg-muted/10">
         {messages.length === 0 ? (
           <p className="text-[11px] text-muted-foreground text-center mt-8">No messages yet. Say hello! 👋</p>
         ) : (
-          messages.map((m) => {
-            const mine = m.user_id === user?.id;
-            const p = profiles[m.user_id];
-            const name = p ? `${p.first_name} ${p.last_name}` : "Member";
-            return (
-              <div key={m.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-[75%] rounded-2xl px-3 py-1.5 ${mine ? "bg-primary text-primary-foreground" : "bg-card border border-border"}`}>
-                  {!mine && <p className="text-[9px] font-bold opacity-80 mb-0.5">{name}</p>}
-                  <p className="text-xs whitespace-pre-wrap break-words leading-snug">{m.content}</p>
-                  <p className={`text-[8px] mt-0.5 ${mine ? "text-primary-foreground/70" : "text-muted-foreground"} text-right`}>{fmtTime(m.created_at)}</p>
-                </div>
-              </div>
-            );
-          })
+          messages.map((m) => (
+            <ChatMessageBubble
+              key={m.id}
+              message={m}
+              profile={profiles[m.user_id]}
+              isMine={m.user_id === user?.id}
+              fmtTime={fmtTime}
+              compact
+            />
+          ))
         )}
         <div ref={endRef} />
       </div>

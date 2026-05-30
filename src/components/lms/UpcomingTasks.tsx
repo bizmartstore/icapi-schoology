@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { ClipboardCheck, PenLine, Flame, Lock, CheckCircle2, CalendarClock, ChevronRight, Inbox, School, AlertTriangle, Filter } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -63,6 +63,59 @@ const UpcomingTasks = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [subjectFilter, setSubjectFilter] = useState<string>("all");
   const [, setNowTick] = useState(Date.now());
+  const ssMapRef = useRef<Record<string, { id: string; subject_id: string; section_id: string }>>({});
+  const subjMapRef = useRef<Record<string, { name: string; color: string }>>({});
+  const secMapRef = useRef<Record<string, { name: string }>>({});
+  const attemptedQuizRef = useRef<Set<string>>(new Set());
+  const submittedActivityRef = useRef<Set<string>>(new Set());
+
+  const sortItems = (list: Item[]) =>
+    [...list]
+      .sort((a, b) => {
+        if (!!a.done !== !!b.done) return a.done ? 1 : -1;
+        const ad = a.due_date ? new Date(a.due_date).getTime() : Infinity;
+        const bd = b.due_date ? new Date(b.due_date).getTime() : Infinity;
+        return ad - bd;
+      })
+      .slice(0, 8);
+
+  const buildActivityItem = (a: { id: string; title: string; due_date: string | null; section_subject_id: string }): Item | null => {
+    const link = ssMapRef.current[a.section_subject_id];
+    if (!link) return null;
+    const subj = subjMapRef.current[link.subject_id];
+    const sec = secMapRef.current[link.section_id];
+    return {
+      id: `a-${a.id}`,
+      raw_id: a.id,
+      kind: "activity",
+      title: a.title,
+      subject_name: subj?.name || "Subject",
+      section_name: sec?.name || "Section",
+      color: subj?.color || "bg-primary",
+      due_date: a.due_date,
+      ss_id: link.id,
+      done: submittedActivityRef.current.has(a.id),
+    };
+  };
+
+  const buildQuizItem = (q: { id: string; title: string; section_subject_id: string }): Item | null => {
+    const link = ssMapRef.current[q.section_subject_id];
+    if (!link) return null;
+    const subj = subjMapRef.current[link.subject_id];
+    const sec = secMapRef.current[link.section_id];
+    return {
+      id: `q-${q.id}`,
+      raw_id: q.id,
+      kind: "quiz",
+      title: q.title,
+      subject_name: subj?.name || "Subject",
+      section_name: sec?.name || "Section",
+      color: subj?.color || "bg-primary",
+      due_date: null,
+      ss_id: link.id,
+      done: attemptedQuizRef.current.has(q.id),
+    };
+  };
 
   // Live countdown refresh (every 60s) so "Late" appears immediately as time passes
   useEffect(() => {
@@ -115,12 +168,17 @@ const UpcomingTasks = () => {
 
     const ssMap: Record<string, any> = {};
     ss.forEach((x) => (ssMap[x.id] = x));
+    ssMapRef.current = ssMap;
     const subjMap: Record<string, any> = {};
     (subjRows || []).forEach((x: any) => (subjMap[x.id] = x));
+    subjMapRef.current = subjMap;
     const secMap: Record<string, any> = {};
     (secRows || []).forEach((x: any) => (secMap[x.id] = x));
+    secMapRef.current = secMap;
     const attemptedQuizIds = new Set((attempts || []).map((a: any) => a.quiz_id));
+    attemptedQuizRef.current = attemptedQuizIds;
     const submittedActivityIds = new Set((subs || []).map((a: any) => a.activity_id));
+    submittedActivityRef.current = submittedActivityIds;
 
     const list: Item[] = [];
 
@@ -170,7 +228,7 @@ const UpcomingTasks = () => {
       return ad - bd;
     });
 
-    setItems(list.slice(0, 8));
+    setItems(sortItems(list));
     // Joined sections (for empty/loading hints)
     setJoinedSections(
       [...new Set(ss.map((s) => s.section_id))]
@@ -184,10 +242,74 @@ const UpcomingTasks = () => {
     if (!user) return;
     const ch = supabase
       .channel("upcoming-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "activities" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quizzes" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quiz_attempts", filter: `student_id=eq.${user.id}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "activity_submissions", filter: `student_id=eq.${user.id}` }, load)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activities" },
+        (payload) => {
+          const a = payload.new as { id: string; title: string; due_date: string | null; section_subject_id: string; is_active: boolean };
+          if (!a.is_active) return;
+          const item = buildActivityItem(a);
+          if (!item) return;
+          setItems((prev) => sortItems([...prev.filter((x) => x.raw_id !== a.id || x.kind !== "activity"), item]));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "activities" },
+        (payload) => {
+          const a = payload.new as { id: string; title: string; due_date: string | null; section_subject_id: string; is_active: boolean };
+          if (!a.is_active) {
+            setItems((prev) => prev.filter((x) => !(x.raw_id === a.id && x.kind === "activity")));
+            return;
+          }
+          const item = buildActivityItem(a);
+          if (!item) return;
+          setItems((prev) => sortItems(prev.map((x) => (x.raw_id === a.id && x.kind === "activity" ? item : x))));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "quizzes" },
+        (payload) => {
+          const q = payload.new as { id: string; title: string; section_subject_id: string; is_published: boolean };
+          if (!q.is_published) return;
+          const item = buildQuizItem(q);
+          if (!item) return;
+          setItems((prev) => sortItems([...prev.filter((x) => x.raw_id !== q.id || x.kind !== "quiz"), item]));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "quizzes" },
+        (payload) => {
+          const q = payload.new as { id: string; title: string; section_subject_id: string; is_published: boolean };
+          if (!q.is_published) {
+            setItems((prev) => prev.filter((x) => !(x.raw_id === q.id && x.kind === "quiz")));
+            return;
+          }
+          const item = buildQuizItem(q);
+          if (!item) return;
+          setItems((prev) => sortItems(prev.map((x) => (x.raw_id === q.id && x.kind === "quiz" ? item : x))));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "quiz_attempts", filter: `student_id=eq.${user.id}` },
+        (payload) => {
+          const quizId = (payload.new as { quiz_id: string }).quiz_id;
+          attemptedQuizRef.current.add(quizId);
+          setItems((prev) => prev.map((x) => (x.raw_id === quizId && x.kind === "quiz" ? { ...x, done: true } : x)));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activity_submissions", filter: `student_id=eq.${user.id}` },
+        (payload) => {
+          const activityId = (payload.new as { activity_id: string }).activity_id;
+          submittedActivityRef.current.add(activityId);
+          setItems((prev) => prev.map((x) => (x.raw_id === activityId && x.kind === "activity" ? { ...x, done: true } : x)));
+        }
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

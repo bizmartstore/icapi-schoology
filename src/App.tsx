@@ -5,6 +5,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import { UnreadMessagesProvider } from "@/contexts/UnreadMessagesContext";
 import InstallPWA from "@/components/lms/InstallPWA";
 import Index from "./pages/Index.tsx";
 import SubjectDetail from "./pages/SubjectDetail.tsx";
@@ -93,6 +94,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <UnreadMessagesProvider>
           <ProfileGate>
           <InstallPWA />
           <Routes>
@@ -119,6 +121,7 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </ProfileGate>
+          </UnreadMessagesProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>

@@ -4,6 +4,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { usePendingBadges } from "@/hooks/usePendingBadges";
+import { useUnreadMessagesContext } from "@/contexts/UnreadMessagesContext";
 import { toast } from "sonner";
 
 type MenuItem = {
@@ -23,6 +24,7 @@ const QuickAccessMenu = () => {
   const { user, profile, roles } = useAuth();
   const { isMemberOfAny } = useSectionMembership();
   const badges = usePendingBadges();
+  const { totalUnread } = useUnreadMessagesContext();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
   const isTeacher = roles.includes("teacher");
   const isAdmin = roles.includes("admin");
@@ -64,7 +66,7 @@ const QuickAccessMenu = () => {
     { icon: LayoutDashboard, label: "Dashboard", path: "/", requiresAuth: false, emoji: "🏠", gradient: "from-primary to-primary/80" },
     { icon: BookOpen, label: "Subjects", path: "/subjects", requiresAuth: true, requiresSection: true, emoji: "📚", gradient: "from-subject-science to-subject-science/80" },
     { icon: Calendar, label: "Calendar", path: "/calendar", requiresAuth: true, requiresSection: true, emoji: "📅", gradient: "from-info to-info/80" },
-    { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: true, emoji: "💬", gradient: "from-subject-english to-subject-english/80" },
+    { icon: MessageCircle, label: "Messages", path: "/messages", requiresAuth: true, emoji: "💬", gradient: "from-subject-english to-subject-english/80", badge: totalUnread },
     { icon: BarChart3, label: "Grades", path: "/grades", requiresAuth: true, requiresSection: true, emoji: "📊", gradient: "from-subject-ap to-subject-ap/80" },
     { icon: Bell, label: "Alerts", path: "/notifications", requiresAuth: true, emoji: "🔔", gradient: "from-warning to-warning/80" },
   ];

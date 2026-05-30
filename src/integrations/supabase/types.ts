@@ -317,6 +317,7 @@ export type Database = {
         Row: {
           approval_status: Database["public"]["Enums"]["approval_status"]
           approved_by: string | null
+          avatar_data: string | null
           contact_number: string
           created_at: string
           email: string
@@ -334,6 +335,7 @@ export type Database = {
         Insert: {
           approval_status?: Database["public"]["Enums"]["approval_status"]
           approved_by?: string | null
+          avatar_data?: string | null
           contact_number: string
           created_at?: string
           email: string
@@ -351,6 +353,7 @@ export type Database = {
         Update: {
           approval_status?: Database["public"]["Enums"]["approval_status"]
           approved_by?: string | null
+          avatar_data?: string | null
           contact_number?: string
           created_at?: string
           email?: string
@@ -644,6 +647,7 @@ export type Database = {
           created_at: string
           id: string
           section_id: string
+          sender_name: string | null
           user_id: string
         }
         Insert: {
@@ -651,6 +655,7 @@ export type Database = {
           created_at?: string
           id?: string
           section_id: string
+          sender_name?: string | null
           user_id: string
         }
         Update: {
@@ -658,6 +663,7 @@ export type Database = {
           created_at?: string
           id?: string
           section_id?: string
+          sender_name?: string | null
           user_id?: string
         }
         Relationships: []

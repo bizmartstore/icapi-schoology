@@ -89,14 +89,128 @@ const StudentSubjectView = () => {
   useEffect(() => {
     if (!ssId) return;
     load();
-    const ch = supabase
-      .channel(`learn-${ssId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "activities", filter: `section_subject_id=eq.${ssId}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quizzes", filter: `section_subject_id=eq.${ssId}` }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "quiz_attempts" }, load)
-      .on("postgres_changes", { event: "*", schema: "public", table: "activity_submissions" }, load)
-      .subscribe();
+    let ch = supabase.channel(`learn-${ssId}`);
+    ch = ch
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activities", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const a = payload.new as Record<string, unknown>;
+          if (a.is_active === false) return;
+          setActivities((prev) => (prev.some((x) => x.id === a.id) ? prev : [a, ...prev]));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "activities", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const a = payload.new as Record<string, unknown>;
+          if (a.is_active === false) {
+            setActivities((prev) => prev.filter((x) => x.id !== a.id));
+            return;
+          }
+          setActivities((prev) => {
+            const idx = prev.findIndex((x) => x.id === a.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = a;
+              return next;
+            }
+            return [a, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "activities", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const id = (payload.old as { id?: string }).id;
+          if (id) setActivities((prev) => prev.filter((x) => x.id !== id));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const m = payload.new as Record<string, unknown>;
+          setMaterials((prev) => (prev.some((x) => x.id === m.id) ? prev : [m, ...prev]));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const m = payload.new as Record<string, unknown>;
+          setMaterials((prev) => prev.map((x) => (x.id === m.id ? m : x)));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const id = (payload.old as { id?: string }).id;
+          if (id) setMaterials((prev) => prev.filter((x) => x.id !== id));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "quizzes", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const q = payload.new as Record<string, unknown>;
+          if (q.is_published === false) return;
+          setQuizzes((prev) => (prev.some((x) => x.id === q.id) ? prev : [q, ...prev]));
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "quizzes", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const q = payload.new as Record<string, unknown>;
+          if (q.is_published === false) {
+            setQuizzes((prev) => prev.filter((x) => x.id !== q.id));
+            return;
+          }
+          setQuizzes((prev) => {
+            const idx = prev.findIndex((x) => x.id === q.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = q;
+              return next;
+            }
+            return [q, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "quizzes", filter: `section_subject_id=eq.${ssId}` },
+        (payload) => {
+          const id = (payload.old as { id?: string }).id;
+          if (id) setQuizzes((prev) => prev.filter((x) => x.id !== id));
+        }
+      );
+
+    if (user) {
+      ch = ch
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "quiz_attempts", filter: `student_id=eq.${user.id}` },
+          (payload) => {
+            const a = payload.new as { quiz_id: string };
+            setAttempts((prev) => ({ ...prev, [a.quiz_id]: payload.new }));
+          }
+        )
+        .on(
+          "postgres_changes",
+          { event: "INSERT", schema: "public", table: "activity_submissions", filter: `student_id=eq.${user.id}` },
+          (payload) => {
+            const s = payload.new as { activity_id: string };
+            setActSubmissions((prev) => ({ ...prev, [s.activity_id]: payload.new }));
+          }
+        );
+    }
+
+    ch.subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ssId, user?.id]);

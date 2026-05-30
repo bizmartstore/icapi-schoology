@@ -15,6 +15,7 @@ type Profile = {
   school_level: "elementary" | "junior_high_school" | null;
   subject_taught: string | null;
   approval_status: "pending" | "approved" | "rejected";
+  avatar_data?: string | null;
 };
 
 type UserRole = "admin" | "student" | "teacher";

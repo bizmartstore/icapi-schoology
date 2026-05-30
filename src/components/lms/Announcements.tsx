@@ -39,7 +39,44 @@ const Announcements = () => {
     load();
     const ch = supabase
       .channel("announcements-rt")
-      .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, load)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        (payload) => {
+          const row = payload.new as Announcement;
+          if (!row.is_active) return;
+          setAnnouncements((prev) => {
+            if (prev.some((a) => a.id === row.id)) return prev;
+            return [row, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "announcements" },
+        (payload) => {
+          const row = payload.new as Announcement;
+          setAnnouncements((prev) => {
+            if (!row.is_active) return prev.filter((a) => a.id !== row.id);
+            const idx = prev.findIndex((a) => a.id === row.id);
+            if (idx >= 0) {
+              const next = [...prev];
+              next[idx] = row;
+              return next;
+            }
+            return [row, ...prev];
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "announcements" },
+        (payload) => {
+          const id = (payload.old as { id?: string }).id;
+          if (!id) return;
+          setAnnouncements((prev) => prev.filter((a) => a.id !== id));
+        }
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps

@@ -4,10 +4,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import NotificationsPopover from "./NotificationsPopover";
 import ProfilePopover from "./ProfilePopover";
+import { useUnreadMessagesContext } from "@/contexts/UnreadMessagesContext";
 
 const LMSHeader = () => {
   const { user, profile } = useAuth();
   const navigate = useNavigate();
+  const { totalUnread } = useUnreadMessagesContext();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
 
   return (
@@ -33,6 +35,11 @@ const LMSHeader = () => {
               aria-label="Messages"
             >
               <MessageSquare className="h-5 w-5 text-primary-foreground" />
+              {totalUnread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 min-w-[18px] h-[18px] px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-extrabold flex items-center justify-center border-2 border-primary shadow-sm">
+                  {totalUnread > 9 ? "9+" : totalUnread}
+                </span>
+              )}
             </button>
             <NotificationsPopover />
             <ProfilePopover />

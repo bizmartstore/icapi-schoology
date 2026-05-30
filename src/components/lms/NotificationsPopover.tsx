@@ -67,12 +67,77 @@ const NotificationsPopover = () => {
 
   useEffect(() => {
     load();
+    const prepend = (n: Notif) => {
+      setItems((prev) => {
+        if (prev.some((x) => x.id === n.id)) return prev;
+        return [n, ...prev]
+          .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+          .slice(0, 15);
+      });
+      setLoading(false);
+    };
+
     const ch = supabase
       .channel("notif-bell")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "announcements" }, load)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "activities" }, load)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "quizzes" }, load)
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "materials" }, load)
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "announcements" },
+        (payload) => {
+          const a = payload.new as { id: string; title: string; preview_text?: string; created_at: string; is_active?: boolean };
+          if (a.is_active === false) return;
+          prepend({
+            id: `ann-${a.id}`,
+            kind: "announcement",
+            title: a.title,
+            subtitle: a.preview_text || undefined,
+            created_at: a.created_at,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activities" },
+        (payload) => {
+          const a = payload.new as { id: string; title: string; due_date?: string; created_at: string; is_active?: boolean };
+          if (a.is_active === false) return;
+          prepend({
+            id: `act-${a.id}`,
+            kind: "activity",
+            title: a.title,
+            subtitle: a.due_date ? `Due ${new Date(a.due_date).toLocaleDateString()}` : undefined,
+            created_at: a.created_at,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "quizzes" },
+        (payload) => {
+          const q = payload.new as { id: string; title: string; created_at: string; is_published?: boolean };
+          if (q.is_published === false) return;
+          prepend({
+            id: `qz-${q.id}`,
+            kind: "quiz",
+            title: q.title,
+            subtitle: "New quiz published",
+            created_at: q.created_at,
+          });
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "materials" },
+        (payload) => {
+          const m = payload.new as { id: string; title: string; created_at: string };
+          prepend({
+            id: `mat-${m.id}`,
+            kind: "material",
+            title: m.title,
+            subtitle: "New module uploaded",
+            created_at: m.created_at,
+          });
+        }
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
