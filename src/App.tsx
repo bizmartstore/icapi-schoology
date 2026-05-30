@@ -22,6 +22,7 @@ import SectionDetail from "./pages/SectionDetail.tsx";
 import TeachSubjectDashboard from "./pages/TeachSubjectDashboard.tsx";
 import StudentSubjectView from "./pages/StudentSubjectView.tsx";
 import CompleteProfilePage from "./pages/CompleteProfilePage.tsx";
+import EventsPage from "./pages/EventsPage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -109,6 +110,7 @@ const App = () => (
 
             <Route path="/subject/:id" element={<SubjectDetail />} />
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
+            <Route path="/events" element={<EventsPage />} />
             <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
             <Route path="/grades" element={<ProtectedRoute><GradesPage /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><NotificationsRedirect /></ProtectedRoute>} />

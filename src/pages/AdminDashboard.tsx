@@ -14,10 +14,11 @@ import { toast } from "sonner";
 import {
   ArrowLeft, CheckCircle2, XCircle, Users, Shield, Image, BookOpen,
   Megaphone, FileText, GraduationCap, Plus, Pencil, Trash2, Save, UserCheck, X, School,
-  Upload, Loader2, Copy,
+  Upload, Loader2, Copy, PartyPopper,
 } from "lucide-react";
 import ImageUploadField from "@/components/lms/ImageUploadField";
 import { uploadBannerImage } from "@/lib/image-upload";
+import { compressToEventDataUrl } from "@/lib/event-image";
 import { isBootstrapAdmin, BOOTSTRAP_ADMIN_EMAIL } from "@/lib/auth-config";
 
 type AppRole = "admin" | "student" | "teacher";
@@ -38,11 +39,12 @@ type UserWithRoles = {
   roles: AppRole[];
 };
 
-type AdminTab = "users" | "banners" | "subjects" | "assignments" | "sections" | "announcements" | "tasks" | "lessons";
+type AdminTab = "users" | "banners" | "events" | "subjects" | "assignments" | "sections" | "announcements" | "tasks" | "lessons";
 
 const TABS: { key: AdminTab; label: string; icon: any }[] = [
   { key: "users", label: "Users", icon: Users },
   { key: "banners", label: "Banners", icon: Image },
+  { key: "events", label: "Events", icon: PartyPopper },
   { key: "subjects", label: "Subjects", icon: BookOpen },
   { key: "assignments", label: "Assign", icon: UserCheck },
   { key: "sections", label: "Sections", icon: School },
@@ -79,6 +81,7 @@ const AdminDashboard = () => {
 
   const [users, setUsers] = useState<any[]>([]);
   const [banners, setBanners] = useState<any[]>([]);
+  const [events, setEvents] = useState<any[]>([]);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [tasks, setTasks] = useState<any[]>([]);
@@ -102,10 +105,11 @@ const AdminDashboard = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [u, ur, b, s, a, t, l, ts, sec, ss] = await Promise.all([
+    const [u, ur, b, ev, s, a, t, l, ts, sec, ss] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id, role"),
       supabase.from("banners").select("*").order("sort_order"),
+      supabase.from("events").select("*").order("sort_order"),
       supabase.from("subjects").select("*").order("sort_order"),
       supabase.from("announcements").select("*").order("created_at", { ascending: false }),
       supabase.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -127,6 +131,7 @@ const AdminDashboard = () => {
       })),
     );
     setBanners(b.data || []);
+    setEvents(ev.data || []);
     setSubjects(s.data || []);
     setAnnouncements(a.data || []);
     setTasks(t.data || []);
@@ -164,14 +169,14 @@ const AdminDashboard = () => {
     fetchAll();
   };
 
-  const handleDelete = async (table: "banners" | "subjects" | "announcements" | "tasks" | "lessons", id: string) => {
+  const handleDelete = async (table: "banners" | "events" | "subjects" | "announcements" | "tasks" | "lessons", id: string) => {
     const { error } = await (supabase.from(table) as any).delete().eq("id", id);
     if (error) { toast.error("Delete failed"); return; }
     toast.success("Deleted");
     fetchAll();
   };
 
-  const handleToggleActive = async (table: "banners" | "subjects" | "announcements" | "tasks" | "lessons", id: string, currentVal: boolean) => {
+  const handleToggleActive = async (table: "banners" | "events" | "subjects" | "announcements" | "tasks" | "lessons", id: string, currentVal: boolean) => {
     const { error } = await (supabase.from(table) as any).update({ is_active: !currentVal }).eq("id", id);
     if (error) { toast.error("Update failed"); return; }
     fetchAll();
@@ -399,6 +404,48 @@ const AdminDashboard = () => {
                           <Pencil className="h-3 w-3" />
                         </Button>
                         <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete("banners", b.id)}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* EVENTS TAB */}
+            {tab === "events" && (
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <h3 className="text-sm font-bold text-foreground">Events ({events.length})</h3>
+                  <Button size="sm" className="rounded-xl text-xs" onClick={() => openCreate("events")}>
+                    <Plus className="h-3 w-3 mr-1" /> Add
+                  </Button>
+                </div>
+                <p className="text-[10px] text-muted-foreground -mt-2">
+                  Images are compressed and stored as codes (no storage quota). Shown in the home carousel and Events tab.
+                </p>
+                {events.map((ev) => (
+                  <div key={ev.id} className="bg-card rounded-2xl p-4 card-shadow">
+                    <div className="flex items-start justify-between gap-3">
+                      {ev.image_data ? (
+                        <img src={ev.image_data} alt={ev.title} className="h-14 w-24 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="h-14 w-24 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                          <PartyPopper className="h-5 w-5 text-muted-foreground" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm font-bold text-foreground">{ev.title}</h3>
+                        <p className="text-[11px] text-muted-foreground line-clamp-2">{ev.content}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">Order: {ev.sort_order}</p>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Switch checked={ev.is_active} onCheckedChange={() => handleToggleActive("events", ev.id, ev.is_active)} />
+                        <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => openEdit("events", ev)}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDelete("events", ev.id)}>
                           <Trash2 className="h-3 w-3" />
                         </Button>
                       </div>
@@ -774,6 +821,7 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const bannerFileRef = useRef<HTMLInputElement>(null);
+  const eventFileRef = useRef<HTMLInputElement>(null);
   const isEdit = !!dialog.item;
 
   useEffect(() => {
@@ -783,6 +831,7 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   const getDefaults = (type: AdminTab): Record<string, any> => {
     switch (type) {
       case "banners": return { title: "", subtitle: "", image_url: "", gradient: "from-primary/80 to-primary/40", sort_order: 0, is_active: true };
+      case "events": return { title: "", content: "", image_data: "", sort_order: 0, is_active: true };
       case "subjects": return { name: "", icon_name: "BookOpen", color: "bg-subject-math", school_level: "elementary", grade_level: "Grade 4", sort_order: 0, is_active: true };
       case "announcements": return { title: "", from_name: "", preview_text: "", full_content: "", image_url: "", is_new: true, is_active: true, scope: "general" };
       case "tasks": return { title: "", subject_name: "", due_date: "", task_type: "Assignment", is_urgent: false, is_active: true };
@@ -822,8 +871,27 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
     if (f) void uploadBannerFile(f);
   };
 
+  const uploadEventFile = async (f: File) => {
+    setUploading(true);
+    try {
+      const dataUrl = await compressToEventDataUrl(f);
+      set("image_data", dataUrl);
+      toast.success("Event image ready — save to publish");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not process image");
+    } finally {
+      setUploading(false);
+      if (eventFileRef.current) eventFileRef.current.value = "";
+    }
+  };
+
+  const onEventFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) void uploadEventFile(f);
+  };
+
   const handleSave = async () => {
-    const table = dialog.type as "banners" | "subjects" | "announcements" | "tasks" | "lessons";
+    const table = dialog.type as "banners" | "events" | "subjects" | "announcements" | "tasks" | "lessons";
 
     if (table === "banners") {
       if (uploading) {
@@ -832,6 +900,21 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
       }
       if (!form.image_url?.trim()) {
         toast.error("Please upload a banner image");
+        return;
+      }
+    }
+
+    if (table === "events") {
+      if (uploading) {
+        toast.error("Please wait for the image to finish processing");
+        return;
+      }
+      if (!form.image_data?.trim()) {
+        toast.error("Please upload an event image");
+        return;
+      }
+      if (!form.title?.trim()) {
+        toast.error("Please enter a title");
         return;
       }
     }
@@ -932,6 +1015,69 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
                 )}
               </div>
               <Field label="Gradient" value={form.gradient} onChange={(v) => set("gradient", v)} placeholder="from-primary/80 via-primary/50 to-primary/30" />
+              <NumberField label="Sort Order" value={form.sort_order} onChange={(v) => set("sort_order", v)} />
+            </>
+          )}
+
+          {dialog.type === "events" && (
+            <>
+              <Field label="Title" value={form.title} onChange={(v) => set("title", v)} />
+              <div className="space-y-1.5">
+                <Label className="text-xs">Content</Label>
+                <Textarea
+                  className="rounded-xl text-sm"
+                  rows={4}
+                  value={form.content || ""}
+                  onChange={(e) => set("content", e.target.value)}
+                  placeholder="Event description shown when students tap the slide"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Event Image *</Label>
+                <p className="text-[10px] text-muted-foreground">
+                  Compressed and stored as a code in the database (saves storage quota).
+                </p>
+                <input
+                  ref={eventFileRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={onEventFileInput}
+                />
+                <button
+                  type="button"
+                  onClick={() => !uploading && eventFileRef.current?.click()}
+                  disabled={uploading}
+                  className="w-full rounded-xl border-2 border-dashed border-border bg-muted/20 overflow-hidden transition-colors hover:border-primary/50 disabled:opacity-60"
+                >
+                  {form.image_data ? (
+                    <img src={form.image_data} alt="Event preview" className="w-full h-36 object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-muted-foreground">
+                      {uploading ? (
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-8 w-8" />
+                      )}
+                      <span className="text-xs font-semibold">
+                        {uploading ? "Processing…" : "Tap to upload image"}
+                      </span>
+                    </div>
+                  )}
+                </button>
+                {form.image_data && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="rounded-xl text-xs text-destructive"
+                    onClick={() => set("image_data", "")}
+                    disabled={uploading}
+                  >
+                    Remove image
+                  </Button>
+                )}
+              </div>
               <NumberField label="Sort Order" value={form.sort_order} onChange={(v) => set("sort_order", v)} />
             </>
           )}
@@ -1060,7 +1206,12 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
           <Button
             className="w-full rounded-xl"
             onClick={handleSave}
-            disabled={saving || uploading || (dialog.type === "banners" && !form.image_url?.trim())}
+            disabled={
+              saving ||
+              uploading ||
+              (dialog.type === "banners" && !form.image_url?.trim()) ||
+              (dialog.type === "events" && (!form.image_data?.trim() || !form.title?.trim()))
+            }
           >
             <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : isEdit ? "Update" : "Create"}
           </Button>

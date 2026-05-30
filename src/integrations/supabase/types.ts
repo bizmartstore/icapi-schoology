@@ -183,6 +183,39 @@ export type Database = {
         }
         Relationships: []
       }
+      events: {
+        Row: {
+          content: string | null
+          created_at: string
+          id: string
+          image_data: string | null
+          is_active: boolean
+          sort_order: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          image_data?: string | null
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string | null
+          created_at?: string
+          id?: string
+          image_data?: string | null
+          is_active?: boolean
+          sort_order?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       class_schedules: {
         Row: {
           created_at: string

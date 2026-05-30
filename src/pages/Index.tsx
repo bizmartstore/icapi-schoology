@@ -10,16 +10,21 @@ import LMSFooter from "@/components/lms/LMSFooter";
 import { useAuth } from "@/contexts/AuthContext";
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { LogIn, Sparkles, BookOpen, Target, Users, GraduationCap, Zap, CheckCircle2, Flame, Star, School, Lock, Library } from "lucide-react";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
+import { useStudentHomeStats } from "@/hooks/useStudentHomeStats";
+import EventCarousel from "@/components/lms/EventCarousel";
 import { useNavigate } from "react-router-dom";
 
 const Index = () => {
   const { profile, roles, user } = useAuth();
   const navigate = useNavigate();
   const { isMemberOfAny } = useSectionMembership();
+  const homeStats = useStudentHomeStats();
   const isLoggedIn = !!user && profile?.approval_status === "approved";
   const isStudent = roles.includes("student");
+  const avatarSrc = profile?.avatar_data || undefined;
   const showJoinNotice = isLoggedIn && isStudent && !isMemberOfAny;
   // My Subjects shows ONLY when student is in at least one section.
   const showMySubjects = isLoggedIn && isStudent && isMemberOfAny;
@@ -73,11 +78,12 @@ const Index = () => {
           {isLoggedIn ? (
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="h-10 w-10 rounded-full shopee-gradient flex items-center justify-center shadow-sm">
-                  <span className="text-sm font-extrabold text-primary-foreground">
+                <Avatar className="h-10 w-10 shadow-sm border-2 border-primary/20">
+                  <AvatarImage src={avatarSrc} alt="Profile" />
+                  <AvatarFallback className="shopee-gradient text-sm font-extrabold text-primary-foreground">
                     {profile ? profile.first_name.charAt(0) : "?"}
-                  </span>
-                </div>
+                  </AvatarFallback>
+                </Avatar>
                 <div>
                   <p className="text-[11px] text-muted-foreground">{greeting()}</p>
                   <p className="text-sm font-bold text-foreground leading-tight">
@@ -87,9 +93,32 @@ const Index = () => {
               </div>
               <div className="flex items-center gap-3">
                 {[
-                  { icon: BookOpen, value: "7", label: "Subjects" },
-                  { icon: Target, value: "4", label: "Tasks" },
-                  { icon: Star, value: "#3", label: "Rank" },
+                  {
+                    label: "Subjects",
+                    value: isStudent && isMemberOfAny
+                      ? homeStats.loading
+                        ? "…"
+                        : String(homeStats.subjects)
+                      : "—",
+                  },
+                  {
+                    label: "Tasks",
+                    value: isStudent && isMemberOfAny
+                      ? homeStats.loading
+                        ? "…"
+                        : String(homeStats.tasks)
+                      : "—",
+                  },
+                  {
+                    label: "Rank",
+                    value: isStudent && isMemberOfAny
+                      ? homeStats.loading
+                        ? "…"
+                        : homeStats.rank != null
+                          ? `#${homeStats.rank}`
+                          : "—"
+                      : "—",
+                  },
                 ].map((s) => (
                   <div key={s.label} className="text-center">
                     <p className="text-sm font-extrabold text-primary">{s.value}</p>
@@ -122,7 +151,10 @@ const Index = () => {
         {/* Announcements (moved up, horizontal, compact) */}
         <div id="announcements" className="bg-card mt-2 border-y border-border scroll-mt-24">
           <div className="px-4 pt-3">
-            <SectionHeader icon={<Sparkles className="h-3.5 w-3.5 text-info" />} title="Announcements" />
+            <SectionHeader icon={<Sparkles className="h-3.5 w-3.5 text-info" />} title="Announcements & Events" />
+          </div>
+          <div className="px-4 pb-2">
+            <EventCarousel />
           </div>
           <Announcements />
         </div>
