@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Plus, FileText, BookMarked, ListChecks, Trophy, Trash2, Eye, EyeOff, Save, X, Calendar, Link as LinkIcon, GraduationCap, Upload, Loader2, Download, File as FileIcon } from "lucide-react";
 import { toast } from "sonner";
+import ImageUploadField from "@/components/lms/ImageUploadField";
 
 type Tab = "activities" | "quizzes" | "materials" | "results";
 
@@ -28,7 +29,9 @@ const TeachSubjectDashboard = () => {
 
   // Composer dialogs
   const [actDlg, setActDlg] = useState(false);
-  const [actForm, setActForm] = useState<{ title: string; instructions: string; due_date: string }>({ title: "", instructions: "", due_date: "" });
+  const [actForm, setActForm] = useState<{ title: string; instructions: string; due_date: string; attachment_url: string; attachment_name: string }>({
+    title: "", instructions: "", due_date: "", attachment_url: "", attachment_name: "",
+  });
   const [matDlg, setMatDlg] = useState(false);
   const [matForm, setMatForm] = useState<{ title: string; description: string; url: string; file_name: string; file_type: string; file_size: number | null }>({ title: "", description: "", url: "", file_name: "", file_type: "", file_size: null });
   const [matUploading, setMatUploading] = useState(false);
@@ -100,11 +103,14 @@ const TeachSubjectDashboard = () => {
     const { error } = await supabase.from("activities").insert({
       section_subject_id: ssId!, title: actForm.title, instructions: actForm.instructions || null,
       due_date: actForm.due_date ? new Date(actForm.due_date).toISOString() : null,
+      attachment_url: actForm.attachment_url || null,
+      attachment_name: actForm.attachment_name || null,
       created_by: user!.id,
     });
     if (error) return toast.error(error.message);
     toast.success("Activity posted");
-    setActDlg(false); setActForm({ title: "", instructions: "", due_date: "" });
+    setActDlg(false);
+    setActForm({ title: "", instructions: "", due_date: "", attachment_url: "", attachment_name: "" });
   };
   const deleteActivity = async (id: string) => {
     if (!confirm("Delete this activity?")) return;
@@ -461,6 +467,15 @@ const TeachSubjectDashboard = () => {
             <div><Label>Title</Label><Input value={actForm.title} onChange={(e) => setActForm({ ...actForm, title: e.target.value })} /></div>
             <div><Label>Instructions</Label><Textarea rows={4} value={actForm.instructions} onChange={(e) => setActForm({ ...actForm, instructions: e.target.value })} /></div>
             <div><Label>Due date</Label><Input type="datetime-local" value={actForm.due_date} onChange={(e) => setActForm({ ...actForm, due_date: e.target.value })} /></div>
+            {user && (
+              <ImageUploadField
+                label="Attachment image (optional)"
+                folder="activities"
+                userId={user.id}
+                value={actForm.attachment_url}
+                onChange={(url) => setActForm((p) => ({ ...p, attachment_url: url, attachment_name: url ? p.attachment_name || "Activity image" : "" }))}
+              />
+            )}
             <Button className="w-full" onClick={saveActivity}><Save className="h-4 w-4 mr-1" /> Post</Button>
           </div>
         </DialogContent>

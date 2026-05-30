@@ -1,5 +1,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { useEffect } from "react";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -65,6 +66,16 @@ const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const NotificationsRedirect = () => {
+  const navigate = useNavigate();
+  useEffect(() => {
+    navigate("/", { replace: true });
+    const scroll = () => document.getElementById("announcements")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    requestAnimationFrame(() => setTimeout(scroll, 100));
+  }, [navigate]);
+  return <LoadingScreen />;
+};
+
 const ProfileGate = ({ children }: { children: React.ReactNode }) => {
   const { user, profile, loading } = useAuth();
   const location = useLocation();
@@ -98,7 +109,7 @@ const App = () => (
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
             <Route path="/grades" element={<ProtectedRoute><GradesPage /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute><NotificationsRedirect /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
             <Route path="/approvals" element={<ProtectedRoute><TeacherRoute><TeacherApprovalPage /></TeacherRoute></ProtectedRoute>} />
             <Route path="/sections" element={<ProtectedRoute><TeacherRoute><TeacherSectionsPage /></TeacherRoute></ProtectedRoute>} />

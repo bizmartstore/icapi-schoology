@@ -13,6 +13,7 @@ type Announcement = {
   from_name: string | null;
   preview_text: string | null;
   full_content: string | null;
+  image_url?: string | null;
   is_new: boolean | null;
   created_at: string | null;
   scope?: string | null;
@@ -75,17 +76,22 @@ const Announcements = () => {
               onClick={() => setOpen(item)}
               className="min-w-[200px] max-w-[200px] bg-card rounded-xl overflow-hidden transition-all duration-200 active:scale-95 hover:shadow-md border border-border/50 card-shadow flex-shrink-0 text-left"
             >
-              <div className={`relative h-[60px] flex items-center justify-center ${
-                isSection
-                  ? "bg-gradient-to-br from-accent to-accent/70"
-                  : item.is_new ? "bg-gradient-to-br from-info to-info/70" : "bg-gradient-to-br from-muted to-muted/60"
+              <div className={`relative h-[60px] flex items-center justify-center overflow-hidden ${
+                item.image_url
+                  ? ""
+                  : isSection
+                    ? "bg-gradient-to-br from-accent to-accent/70"
+                    : item.is_new ? "bg-gradient-to-br from-info to-info/70" : "bg-gradient-to-br from-muted to-muted/60"
               }`}>
-                {isSection
-                  ? <School className="h-6 w-6 text-primary-foreground drop-shadow" />
-                  : item.is_new
-                    ? <Sparkles className="h-6 w-6 text-primary-foreground drop-shadow" />
-                    : <Megaphone className="h-6 w-6 text-info" />
-                }
+                {item.image_url ? (
+                  <img src={item.image_url} alt="" className="absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                ) : isSection ? (
+                  <School className="h-6 w-6 text-primary-foreground drop-shadow relative z-10" />
+                ) : item.is_new ? (
+                  <Sparkles className="h-6 w-6 text-primary-foreground drop-shadow relative z-10" />
+                ) : (
+                  <Megaphone className="h-6 w-6 text-info relative z-10" />
+                )}
                 {isSection && (
                   <Badge className="absolute top-1.5 right-1.5 text-[7px] font-bold px-1.5 py-0 rounded-full bg-primary text-primary-foreground border-0">
                     SECTION
@@ -123,6 +129,9 @@ const Announcements = () => {
                   {open.scope === "section" && <span className="ml-1 text-primary font-semibold">· Section</span>}
                 </DialogDescription>
               </DialogHeader>
+              {open.image_url && (
+                <img src={open.image_url} alt="" className="w-full rounded-xl object-cover max-h-40 mb-3" loading="lazy" />
+              )}
               <div className="text-xs text-foreground leading-relaxed whitespace-pre-wrap">
                 {open.full_content || open.preview_text || "No additional details."}
               </div>

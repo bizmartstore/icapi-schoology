@@ -31,7 +31,7 @@ const CalendarPage = () => {
     const loadTeacherSections = async () => {
       if (!user || !isTeacher) return;
       const [{ data: advisory }, { data: teaching }] = await Promise.all([
-        supabase.from("sections").select("id").eq("adviser_id", user.id),
+        supabase.from("sections").select("id").eq("teacher_id", user.id),
         supabase.from("section_subjects").select("section_id").eq("teacher_id", user.id),
       ]);
       const ids = new Set<string>();

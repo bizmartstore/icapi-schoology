@@ -16,6 +16,8 @@ import {
   Megaphone, FileText, GraduationCap, Plus, Pencil, Trash2, Save, UserCheck, X, School,
   Upload, Loader2, Copy,
 } from "lucide-react";
+import ImageUploadField from "@/components/lms/ImageUploadField";
+import { uploadBannerImage } from "@/lib/image-upload";
 
 type AdminTab = "users" | "banners" | "subjects" | "assignments" | "sections" | "announcements" | "tasks" | "lessons";
 
@@ -127,6 +129,7 @@ const AdminDashboard = () => {
   const openEdit = (type: AdminTab, item: any) => setEditDialog({ open: true, type, item });
 
   const teachers = users.filter((u) => u.user_type === "teacher" && u.approval_status === "approved");
+  const pendingUserCount = users.filter((u) => u.approval_status === "pending").length;
 
   const createAssignment = async () => {
     if (!assignForm.teacher_id || !assignForm.subject_id) {
@@ -241,6 +244,11 @@ const AdminDashboard = () => {
               }`}
             >
               <t.icon className="h-3.5 w-3.5" /> {t.label}
+              {t.key === "users" && pendingUserCount > 0 && (
+                <span className="ml-0.5 min-w-[16px] h-4 px-1 rounded-full bg-destructive text-destructive-foreground text-[9px] font-extrabold inline-flex items-center justify-center">
+                  {pendingUserCount > 9 ? "9+" : pendingUserCount}
+                </span>
+              )}
             </button>
           ))}
         </div>
@@ -690,7 +698,7 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
     switch (type) {
       case "banners": return { title: "", subtitle: "", image_url: "", gradient: "from-primary/80 to-primary/40", sort_order: 0, is_active: true };
       case "subjects": return { name: "", icon_name: "BookOpen", color: "bg-subject-math", school_level: "elementary", grade_level: "Grade 4", sort_order: 0, is_active: true };
-      case "announcements": return { title: "", from_name: "", preview_text: "", full_content: "", is_new: true, is_active: true, scope: "general" };
+      case "announcements": return { title: "", from_name: "", preview_text: "", full_content: "", image_url: "", is_new: true, is_active: true, scope: "general" };
       case "tasks": return { title: "", subject_name: "", due_date: "", task_type: "Assignment", is_urgent: false, is_active: true };
       case "lessons": return { subject_name: "", lesson_title: "", chapter: "", time_left: "", progress: 0, color: "bg-subject-math", is_active: true };
       default: return {};
@@ -700,32 +708,21 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   const set = (key: string, val: any) => setForm((p) => ({ ...p, [key]: val }));
 
   const uploadBannerFile = async (f: File) => {
-    if (!f.type.startsWith("image/")) {
-      toast.error("Please select an image file (JPG, PNG, GIF, or WebP)");
-      return;
-    }
-    if (f.size > 5 * 1024 * 1024) {
-      toast.error("Image too large (max 5MB)");
-      return;
-    }
     if (!user) {
       toast.error("You must be signed in to upload");
       return;
     }
     setUploading(true);
-    const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
-    const path = `${user.id}/${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("banners").upload(path, f, { upsert: true, contentType: f.type });
-    if (error) {
+    try {
+      const url = await uploadBannerImage(f, user.id);
+      set("image_url", url);
+      toast.success("Banner image ready — save to publish");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Upload failed");
+    } finally {
       setUploading(false);
-      toast.error(error.message);
-      return;
+      if (bannerFileRef.current) bannerFileRef.current.value = "";
     }
-    const { data } = supabase.storage.from("banners").getPublicUrl(path);
-    set("image_url", data.publicUrl);
-    setUploading(false);
-    if (bannerFileRef.current) bannerFileRef.current.value = "";
-    toast.success("Banner image ready — save to publish");
   };
 
   const onBannerFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -909,6 +906,15 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
             <>
               <Field label="Title" value={form.title} onChange={(v) => set("title", v)} />
               <Field label="From" value={form.from_name} onChange={(v) => set("from_name", v)} placeholder="e.g. School Admin" />
+              {user && (
+                <ImageUploadField
+                  label="Announcement image (optional)"
+                  folder="announcements"
+                  userId={user.id}
+                  value={form.image_url || ""}
+                  onChange={(url) => set("image_url", url)}
+                />
+              )}
               <div className="space-y-1.5">
                 <Label className="text-xs">Preview Text</Label>
                 <Textarea className="rounded-xl text-sm" value={form.preview_text || ""} onChange={(e) => set("preview_text", e.target.value)} />

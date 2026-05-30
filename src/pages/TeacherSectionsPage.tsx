@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import LMSHeader from "@/components/lms/LMSHeader";
+import ImageUploadField from "@/components/lms/ImageUploadField";
 
 type Section = {
   id: string;
@@ -403,10 +404,15 @@ const TeacherSectionsPage = () => {
                 </Select>
               </div>
             </div>
-            <div>
-              <Label className="text-xs">Cover Image URL (optional)</Label>
-              <Input value={form.cover_image_url || ""} onChange={(e) => setForm({ ...form, cover_image_url: e.target.value })} placeholder="https://..." />
-            </div>
+            {user && (
+              <ImageUploadField
+                label="Cover Image"
+                folder="sections"
+                userId={user.id}
+                value={form.cover_image_url || ""}
+                onChange={(url) => setForm({ ...form, cover_image_url: url })}
+              />
+            )}
             <div>
               <Label className="text-xs">Color Theme</Label>
               <Select value={form.color || ""} onValueChange={(v) => setForm({ ...form, color: v })}>
@@ -465,6 +471,7 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
   // Announcement compose
   const [annTitle, setAnnTitle] = useState("");
   const [annText, setAnnText] = useState("");
+  const [annImageUrl, setAnnImageUrl] = useState("");
 
   useEffect(() => {
     if (!section) return;
@@ -566,12 +573,13 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
     if (!annTitle.trim()) { toast.error("Title required"); return; }
     const { error } = await supabase.from("announcements").insert({
       title: annTitle, preview_text: annText.slice(0, 100), full_content: annText,
+      image_url: annImageUrl || null,
       from_name: "Section Adviser", scope: "section", section_id: section.id,
       created_by: user.id, is_new: true, is_active: true,
     });
     if (error) return toast.error(error.message);
     toast.success("Announcement posted");
-    setAnnTitle(""); setAnnText("");
+    setAnnTitle(""); setAnnText(""); setAnnImageUrl("");
     load();
   };
 
@@ -719,6 +727,15 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
             <div className="bg-muted/30 rounded-xl p-3 space-y-2">
               <Input placeholder="Title" value={annTitle} onChange={(e) => setAnnTitle(e.target.value)} className="h-8 text-xs" />
               <Textarea placeholder="Message to your section…" value={annText} onChange={(e) => setAnnText(e.target.value)} rows={3} className="text-xs" />
+              {user && (
+                <ImageUploadField
+                  label="Image (optional)"
+                  folder="announcements"
+                  userId={user.id}
+                  value={annImageUrl}
+                  onChange={setAnnImageUrl}
+                />
+              )}
               <Button size="sm" className="w-full rounded-lg text-xs h-8" onClick={postAnnouncement}>
                 <Megaphone className="h-3 w-3 mr-1" /> Post to section
               </Button>

@@ -50,6 +50,11 @@ const ProfilePopover = () => {
           <Button variant="outline" size="sm" className="h-8 text-[11px] font-bold" onClick={() => navigate("/grades")}>
             <ListChecks className="h-3.5 w-3.5 mr-1" /> Grades
           </Button>
+          {roles.includes("admin") && (
+            <Button variant="outline" size="sm" className="col-span-2 h-8 text-[11px] font-bold" onClick={() => navigate("/admin")}>
+              <ShieldCheck className="h-3.5 w-3.5 mr-1" /> Admin Dashboard
+            </Button>
+          )}
         </div>
         <div className="px-3 pb-2">
           <Button

@@ -46,6 +46,13 @@ const Index = () => {
     }
   }, []);
 
+  useEffect(() => {
+    if (window.location.hash === "#announcements") {
+      const scroll = () => document.getElementById("announcements")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      requestAnimationFrame(() => setTimeout(scroll, 150));
+    }
+  }, []);
+
   const greeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return "Good morning";
@@ -113,7 +120,7 @@ const Index = () => {
         <QuickAccessMenu />
 
         {/* Announcements (moved up, horizontal, compact) */}
-        <div className="bg-card mt-2 border-y border-border">
+        <div id="announcements" className="bg-card mt-2 border-y border-border scroll-mt-24">
           <div className="px-4 pt-3">
             <SectionHeader icon={<Sparkles className="h-3.5 w-3.5 text-info" />} title="Announcements" />
           </div>

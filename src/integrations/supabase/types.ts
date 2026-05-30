@@ -98,6 +98,7 @@ export type Database = {
           from_name: string | null
           full_content: string | null
           id: string
+          image_url: string | null
           is_active: boolean | null
           is_new: boolean | null
           preview_text: string | null
@@ -112,6 +113,7 @@ export type Database = {
           from_name?: string | null
           full_content?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           is_new?: boolean | null
           preview_text?: string | null
@@ -126,6 +128,7 @@ export type Database = {
           from_name?: string | null
           full_content?: string | null
           id?: string
+          image_url?: string | null
           is_active?: boolean | null
           is_new?: boolean | null
           preview_text?: string | null

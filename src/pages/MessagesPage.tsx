@@ -53,7 +53,7 @@ const MessagesPage = () => {
     const loadTeacherSections = async () => {
       if (!user || !isTeacher) return;
       const [{ data: advisory }, { data: teaching }] = await Promise.all([
-        supabase.from("sections").select("id").eq("adviser_id", user.id),
+        supabase.from("sections").select("id").eq("teacher_id", user.id),
         supabase.from("section_subjects").select("section_id").eq("teacher_id", user.id),
       ]);
       const ids = new Set<string>();
@@ -113,7 +113,14 @@ const MessagesPage = () => {
     };
 
     loadConversations();
-  }, [user?.id, sectionIds.join(",")]);
+
+    if (!user || !hasSections) return;
+    const ch = supabase
+      .channel("messages-inbox")
+      .on("postgres_changes", { event: "INSERT", schema: "public", table: "section_messages" }, loadConversations)
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [user?.id, sectionIds.join(","), hasSections]);
 
   const fetchProfiles = async (ids: string[]) => {
     const missing = ids.filter((i) => !profiles[i]);
