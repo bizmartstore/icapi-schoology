@@ -35,14 +35,29 @@ const HeroBanner = () => {
   }, []);
 
   useEffect(() => {
-    supabase
-      .from("banners")
-      .select("*")
-      .eq("is_active", true)
-      .order("sort_order")
-      .then(({ data }) => {
-        if (data && data.length > 0) setBanners(data as DbBanner[]);
-      });
+    const loadBanners = async () => {
+      const { data } = await supabase
+        .from("banners")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      const withImages = (data || []).filter((b) => Boolean(b.image_url?.trim())) as DbBanner[];
+      setBanners(withImages);
+      setCurrent((prev) => Math.min(prev, withImages.length));
+    };
+
+    loadBanners();
+
+    const channel = supabase
+      .channel("hero-banners")
+      .on("postgres_changes", { event: "*", schema: "public", table: "banners" }, () => {
+        loadBanners();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const goTo = useCallback(

@@ -293,8 +293,12 @@ const AdminDashboard = () => {
                 {banners.map((b) => (
                   <div key={b.id} className="bg-card rounded-2xl p-4 card-shadow">
                     <div className="flex items-start justify-between gap-3">
-                      {b.image_url && (
+                      {b.image_url ? (
                         <img src={b.image_url} alt={b.title} className="h-14 w-24 rounded-lg object-cover flex-shrink-0" />
+                      ) : (
+                        <div className="h-14 w-24 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
+                          <Image className="h-5 w-5 text-muted-foreground" />
+                        </div>
                       )}
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold text-foreground">{b.title}</h3>
@@ -695,20 +699,21 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
 
   const set = (key: string, val: any) => setForm((p) => ({ ...p, [key]: val }));
 
-  const uploadBannerImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (!f) return;
+  const uploadBannerFile = async (f: File) => {
     if (!f.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+      toast.error("Please select an image file (JPG, PNG, GIF, or WebP)");
       return;
     }
     if (f.size > 5 * 1024 * 1024) {
       toast.error("Image too large (max 5MB)");
       return;
     }
-    if (!user) return;
+    if (!user) {
+      toast.error("You must be signed in to upload");
+      return;
+    }
     setUploading(true);
-    const ext = f.name.split(".").pop() || "jpg";
+    const ext = f.name.split(".").pop()?.toLowerCase() || "jpg";
     const path = `${user.id}/${Date.now()}.${ext}`;
     const { error } = await supabase.storage.from("banners").upload(path, f, { upsert: true, contentType: f.type });
     if (error) {
@@ -720,12 +725,35 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
     set("image_url", data.publicUrl);
     setUploading(false);
     if (bannerFileRef.current) bannerFileRef.current.value = "";
-    toast.success("Banner image uploaded");
+    toast.success("Banner image ready — save to publish");
+  };
+
+  const onBannerFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (f) void uploadBannerFile(f);
+  };
+
+  const onBannerDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    const f = e.dataTransfer.files?.[0];
+    if (f) void uploadBannerFile(f);
   };
 
   const handleSave = async () => {
-    setSaving(true);
     const table = dialog.type as "banners" | "subjects" | "announcements" | "tasks" | "lessons";
+
+    if (table === "banners") {
+      if (uploading) {
+        toast.error("Please wait for the image upload to finish");
+        return;
+      }
+      if (!form.image_url?.trim()) {
+        toast.error("Please upload a banner image");
+        return;
+      }
+    }
+
+    setSaving(true);
     const { id, created_at, updated_at, ...data } = form;
 
     // Force admin announcements to general scope (RLS lets admins insert anything; keep tidy)
@@ -759,28 +787,66 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
               <Field label="Title" value={form.title} onChange={(v) => set("title", v)} />
               <Field label="Subtitle" value={form.subtitle} onChange={(v) => set("subtitle", v)} />
               <div className="space-y-1.5">
-                <Label className="text-xs">Banner Image</Label>
-                {form.image_url && (
-                  <img src={form.image_url} alt="Banner preview" className="w-full h-28 rounded-xl object-cover border border-border" />
-                )}
+                <Label className="text-xs">Banner Image *</Label>
+                <p className="text-[10px] text-muted-foreground">
+                  Upload an image to show in the home page hero carousel (max 5MB).
+                </p>
                 <input
                   ref={bannerFileRef}
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
                   className="hidden"
-                  onChange={uploadBannerImage}
+                  onChange={onBannerFileInput}
                 />
-                <Button
+                <button
                   type="button"
-                  variant="outline"
-                  className="w-full rounded-xl h-9 text-sm"
-                  onClick={() => bannerFileRef.current?.click()}
+                  onClick={() => !uploading && bannerFileRef.current?.click()}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={onBannerDrop}
                   disabled={uploading}
+                  className="w-full rounded-xl border-2 border-dashed border-border bg-muted/20 overflow-hidden transition-colors hover:border-primary/50 hover:bg-muted/40 disabled:opacity-60"
                 >
-                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
-                  {form.image_url ? "Replace Image" : "Upload Image"}
-                </Button>
-                <Field label="Or paste Image URL" value={form.image_url} onChange={(v) => set("image_url", v)} placeholder="https://..." />
+                  {form.image_url ? (
+                    <img src={form.image_url} alt="Banner preview" className="w-full h-36 object-cover" />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-muted-foreground">
+                      {uploading ? (
+                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                      ) : (
+                        <Upload className="h-8 w-8" />
+                      )}
+                      <span className="text-xs font-semibold">
+                        {uploading ? "Uploading…" : "Tap or drag an image here"}
+                      </span>
+                      <span className="text-[10px]">JPG, PNG, GIF, WebP</span>
+                    </div>
+                  )}
+                </button>
+                {form.image_url && (
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 rounded-xl text-xs"
+                      onClick={() => bannerFileRef.current?.click()}
+                      disabled={uploading}
+                    >
+                      {uploading ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Upload className="h-3 w-3 mr-1" />}
+                      Replace image
+                    </Button>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="rounded-xl text-xs text-destructive"
+                      onClick={() => set("image_url", "")}
+                      disabled={uploading}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                )}
               </div>
               <Field label="Gradient" value={form.gradient} onChange={(v) => set("gradient", v)} placeholder="from-primary/80 via-primary/50 to-primary/30" />
               <NumberField label="Sort Order" value={form.sort_order} onChange={(v) => set("sort_order", v)} />
@@ -899,7 +965,11 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
             </>
           )}
 
-          <Button className="w-full rounded-xl" onClick={handleSave} disabled={saving}>
+          <Button
+            className="w-full rounded-xl"
+            onClick={handleSave}
+            disabled={saving || uploading || (dialog.type === "banners" && !form.image_url?.trim())}
+          >
             <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : isEdit ? "Update" : "Create"}
           </Button>
         </div>

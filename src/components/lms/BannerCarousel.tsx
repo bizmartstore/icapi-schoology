@@ -1,10 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import banner1 from "@/assets/banner-1.jpg";
-import banner2 from "@/assets/banner-2.jpg";
-import banner3 from "@/assets/banner-3.jpg";
-
-const fallbackImages = [banner1, banner2, banner3];
 
 type Banner = {
   id: string;
@@ -21,9 +16,29 @@ const BannerCarousel = () => {
   const [isTransitioning, setIsTransitioning] = useState(false);
 
   useEffect(() => {
-    supabase.from("banners").select("*").eq("is_active", true).order("sort_order").then(({ data }) => {
-      if (data && data.length > 0) setBanners(data as Banner[]);
-    });
+    const loadBanners = async () => {
+      const { data } = await supabase
+        .from("banners")
+        .select("*")
+        .eq("is_active", true)
+        .order("sort_order");
+      const withImages = (data || []).filter((b) => Boolean(b.image_url?.trim())) as Banner[];
+      setBanners(withImages);
+      setCurrent((prev) => (withImages.length === 0 ? 0 : Math.min(prev, withImages.length - 1)));
+    };
+
+    loadBanners();
+
+    const channel = supabase
+      .channel("banner-carousel")
+      .on("postgres_changes", { event: "*", schema: "public", table: "banners" }, () => {
+        loadBanners();
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   const goTo = useCallback((index: number) => {
@@ -57,7 +72,7 @@ const BannerCarousel = () => {
             }`}
           >
             <img
-              src={banner.image_url || fallbackImages[i % fallbackImages.length]}
+              src={banner.image_url!}
               alt={banner.title}
               className="w-full h-full object-cover"
               loading={i === 0 ? undefined : "lazy"}
