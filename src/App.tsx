@@ -4,6 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
+import InstallPWA from "@/components/lms/InstallPWA";
 import Index from "./pages/Index.tsx";
 import SubjectDetail from "./pages/SubjectDetail.tsx";
 import CalendarPage from "./pages/CalendarPage.tsx";
@@ -11,8 +12,7 @@ import MessagesPage from "./pages/MessagesPage.tsx";
 import GradesPage from "./pages/GradesPage.tsx";
 import NotFound from "./pages/NotFound.tsx";
 import LoginPage from "./pages/LoginPage.tsx";
-import StudentSignupPage from "./pages/StudentSignupPage.tsx";
-import TeacherSignupPage from "./pages/TeacherSignupPage.tsx";
+import SignupPage from "./pages/SignupPage.tsx";
 import AdminDashboard from "./pages/AdminDashboard.tsx";
 import TeacherApprovalPage from "./pages/TeacherApprovalPage.tsx";
 import TeacherSectionsPage from "./pages/TeacherSectionsPage.tsx";
@@ -22,9 +22,13 @@ import StudentSubjectView from "./pages/StudentSubjectView.tsx";
 
 const queryClient = new QueryClient();
 
+const LoadingScreen = () => (
+  <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading...</div>
+);
+
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, profile } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading...</div>;
+  if (loading) return <LoadingScreen />;
   if (!user) return <Navigate to="/login" replace />;
   if (profile && profile.approval_status !== "approved") {
     return (
@@ -43,9 +47,18 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   return <>{children}</>;
 };
 
+const TeacherRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading, profile, roles } = useAuth();
+  if (loading) return <LoadingScreen />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (profile && profile.approval_status !== "approved") return <Navigate to="/login" replace />;
+  if (!roles.includes("teacher") && !roles.includes("admin")) return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, profile } = useAuth();
-  if (loading) return <div className="min-h-screen flex items-center justify-center text-muted-foreground">Loading...</div>;
+  if (loading) return <LoadingScreen />;
   if (user && profile?.approval_status === "approved") return <Navigate to="/" replace />;
   return <>{children}</>;
 };
@@ -57,26 +70,24 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <InstallPWA />
           <Routes>
-            {/* Homepage is public - anyone can view */}
             <Route path="/" element={<Index />} />
             <Route path="/subjects" element={<Index />} />
-            
-            {/* Auth pages */}
+
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
-            <Route path="/signup/student" element={<PublicRoute><StudentSignupPage /></PublicRoute>} />
-            <Route path="/signup/teacher" element={<PublicRoute><TeacherSignupPage /></PublicRoute>} />
-            
-            {/* Subject detail is public so guests can browse */}
+            <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+            <Route path="/signup/student" element={<Navigate to="/signup?type=student" replace />} />
+            <Route path="/signup/teacher" element={<Navigate to="/signup?type=teacher" replace />} />
+
             <Route path="/subject/:id" element={<SubjectDetail />} />
-            {/* Protected pages - require login */}
             <Route path="/calendar" element={<ProtectedRoute><CalendarPage /></ProtectedRoute>} />
             <Route path="/messages" element={<ProtectedRoute><MessagesPage /></ProtectedRoute>} />
             <Route path="/grades" element={<ProtectedRoute><GradesPage /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/admin" element={<ProtectedRoute><AdminDashboard /></ProtectedRoute>} />
-            <Route path="/approvals" element={<ProtectedRoute><TeacherApprovalPage /></ProtectedRoute>} />
-            <Route path="/sections" element={<ProtectedRoute><TeacherSectionsPage /></ProtectedRoute>} />
+            <Route path="/approvals" element={<ProtectedRoute><TeacherRoute><TeacherApprovalPage /></TeacherRoute></ProtectedRoute>} />
+            <Route path="/sections" element={<ProtectedRoute><TeacherRoute><TeacherSectionsPage /></TeacherRoute></ProtectedRoute>} />
             <Route path="/section/:id" element={<SectionDetail />} />
             <Route path="/teach/:ssId" element={<ProtectedRoute><TeachSubjectDashboard /></ProtectedRoute>} />
             <Route path="/learn/:ssId" element={<ProtectedRoute><StudentSubjectView /></ProtectedRoute>} />

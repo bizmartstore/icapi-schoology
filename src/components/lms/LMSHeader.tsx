@@ -2,7 +2,6 @@ import { Search, MessageSquare, LogIn, BookMarked } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
-import { toast } from "sonner";
 import NotificationsPopover from "./NotificationsPopover";
 import ProfilePopover from "./ProfilePopover";
 
@@ -28,7 +27,7 @@ const LMSHeader = () => {
           <div className="flex items-center gap-0.5">
             <button
               className="relative p-2 rounded-full hover:bg-primary-foreground/10 transition-colors"
-              onClick={() => toast.info("Messages coming soon! 💬")}
+              onClick={() => navigate("/messages")}
               aria-label="Messages"
             >
               <MessageSquare className="h-5 w-5 text-primary-foreground" />

@@ -97,14 +97,9 @@ const LoginPage = () => {
 
         <div className="text-center space-y-2">
           <p className="text-sm text-muted-foreground">Don't have an account?</p>
-          <div className="flex gap-3 justify-center">
-            <Link to="/signup/student">
-              <Button variant="outline" size="sm" className="rounded-xl">Sign up as Student</Button>
-            </Link>
-            <Link to="/signup/teacher">
-              <Button variant="outline" size="sm" className="rounded-xl">Sign up as Teacher</Button>
-            </Link>
-          </div>
+          <Link to="/signup">
+            <Button variant="outline" size="sm" className="rounded-xl">Create Account</Button>
+          </Link>
         </div>
       </div>
     </div>
