@@ -11,9 +11,9 @@ Copy `.env.example` to `.env` and set:
 
 Restart the dev server after changing `.env`.
 
-**Lovable preview** (`*.lovable.app`): add the same two variables under **Project → Settings → Secrets** (or Environment), then redeploy. The `POST …/__l5e/trackevents 403` message is Lovable analytics and is unrelated to Supabase.
+**Lovable** (`*.lovable.app`): Production builds use committed `.env.production` and `src/config/supabase-public.ts`, so the app works even if Lovable Cloud still has an old Supabase connection with empty/wrong secrets. For a clean setup, open **Cloud → Secrets** and set (or remove stale) `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` for project `mvxyqbjwnpwcovkarwqa`, or disconnect the old Supabase integration in Lovable. The `trackevents 403` line is Lovable analytics only.
 
-`.env` is not committed (see `.gitignore`); do not deploy with an empty publishable key.
+Local dev: copy `.env.example` → `.env` (gitignored).
 
 ### 2. Apply database schema (required once per new project)
 
