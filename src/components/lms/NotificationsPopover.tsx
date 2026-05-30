@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, Megaphone, FileText, ClipboardList, BookOpen, Trash2 } from "lucide-react";
+import { Bell, Megaphone, FileText, ClipboardList, BookOpen, Trash2, MessageSquare } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { supabase } from "@/integrations/supabase/client";
@@ -8,10 +10,11 @@ import { formatDistanceToNow } from "date-fns";
 
 type Notif = {
   id: string;
-  kind: "announcement" | "activity" | "quiz" | "material";
+  kind: "announcement" | "activity" | "quiz" | "material" | "message";
   title: string;
   subtitle?: string;
   created_at: string;
+  href?: string;
 };
 
 const DISMISSED_KEY = "icapi_dismissed_notifications";
@@ -36,12 +39,37 @@ const iconFor = (k: Notif["kind"]) => {
     case "activity": return <ClipboardList className="h-3.5 w-3.5 text-destructive" />;
     case "quiz": return <FileText className="h-3.5 w-3.5 text-accent" />;
     case "material": return <BookOpen className="h-3.5 w-3.5 text-success" />;
+    case "message": return <MessageSquare className="h-3.5 w-3.5 text-primary" />;
   }
 };
 
 const NotificationsPopover = () => {
-  const { user } = useAuth();
+  const { user, roles } = useAuth();
+  const navigate = useNavigate();
+  const { memberSectionIds } = useSectionMembership();
+  const isTeacher = roles.includes("teacher");
   const [items, setItems] = useState<Notif[]>([]);
+  const [teacherSectionIds, setTeacherSectionIds] = useState<string[]>([]);
+
+  useEffect(() => {
+    const load = async () => {
+      if (!user || !isTeacher) {
+        setTeacherSectionIds([]);
+        return;
+      }
+      const [{ data: advisory }, { data: teaching }] = await Promise.all([
+        supabase.from("sections").select("id").eq("teacher_id", user.id),
+        supabase.from("section_subjects").select("section_id").eq("teacher_id", user.id),
+      ]);
+      const ids = new Set<string>();
+      (advisory || []).forEach((s: { id: string }) => ids.add(s.id));
+      (teaching || []).forEach((s: { section_id: string }) => ids.add(s.section_id));
+      setTeacherSectionIds([...ids]);
+    };
+    load();
+  }, [user?.id, isTeacher]);
+
+  const mySectionIds = isTeacher ? teacherSectionIds : memberSectionIds;
   const [loading, setLoading] = useState(true);
   const [dismissed, setDismissed] = useState<Set<string>>(loadDismissed);
 
@@ -138,10 +166,66 @@ const NotificationsPopover = () => {
           });
         }
       )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "section_messages" },
+        async (payload) => {
+          const m = payload.new as {
+            id: string;
+            section_id: string;
+            user_id: string;
+            recipient_id: string | null;
+            reply_to_id: string | null;
+            content: string;
+            sender_name: string | null;
+            created_at: string;
+          };
+          if (!user || m.user_id === user.id) return;
+          if (!mySectionIds.includes(m.section_id)) return;
+
+          let title = m.sender_name?.trim() || "New message";
+          let subtitle = m.content.slice(0, 80);
+          let href = "/messages";
+
+          if (m.recipient_id === user.id) {
+            title = `Private message from ${title}`;
+            subtitle = m.content.slice(0, 80);
+            href = `/messages?section=${m.section_id}&peer=${m.user_id}`;
+          } else if (m.reply_to_id) {
+            const { data: parent } = await supabase
+              .from("section_messages")
+              .select("user_id")
+              .eq("id", m.reply_to_id)
+              .maybeSingle();
+            if (parent?.user_id !== user.id) return;
+            title = `${title} replied to you`;
+            subtitle = m.content.slice(0, 80);
+            if (m.recipient_id) {
+              href = `/messages?section=${m.section_id}&peer=${m.user_id}`;
+            } else {
+              href = `/messages?section=${m.section_id}`;
+            }
+          } else if (!m.recipient_id) {
+            title = `Section chat: ${title}`;
+            href = `/messages?section=${m.section_id}`;
+          } else {
+            return;
+          }
+
+          prepend({
+            id: `msg-${m.id}`,
+            kind: "message",
+            title,
+            subtitle,
+            created_at: m.created_at,
+            href,
+          });
+        }
+      )
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, mySectionIds.join(",")]);
 
   const visible = useMemo(
     () => items.filter((n) => !dismissed.has(n.id)),
@@ -211,7 +295,15 @@ const NotificationsPopover = () => {
             </div>
           ) : (
             visible.map((n) => (
-              <div key={n.id} className="px-3 py-2.5 hover:bg-muted/50 transition-colors flex gap-2 group">
+              <button
+                key={n.id}
+                type="button"
+                onClick={() => {
+                  dismissOne(n.id);
+                  if (n.href) navigate(n.href);
+                }}
+                className="w-full px-3 py-2.5 hover:bg-muted/50 transition-colors flex gap-2 group text-left"
+              >
                 <div className="h-7 w-7 rounded-full bg-muted flex items-center justify-center flex-shrink-0">
                   {iconFor(n.kind)}
                 </div>
@@ -222,15 +314,25 @@ const NotificationsPopover = () => {
                     {formatDistanceToNow(new Date(n.created_at), { addSuffix: true })}
                   </p>
                 </div>
-                <button
-                  type="button"
+                <span
+                  role="button"
+                  tabIndex={0}
                   className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-destructive p-1 self-start transition-opacity"
                   aria-label="Dismiss"
-                  onClick={() => dismissOne(n.id)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    dismissOne(n.id);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      e.stopPropagation();
+                      dismissOne(n.id);
+                    }
+                  }}
                 >
                   <Trash2 className="h-3.5 w-3.5" />
-                </button>
-              </div>
+                </span>
+              </button>
             ))
           )}
         </div>

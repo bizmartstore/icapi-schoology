@@ -708,6 +708,8 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          recipient_id: string | null
+          reply_to_id: string | null
           section_id: string
           sender_name: string | null
           user_id: string
@@ -716,6 +718,8 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          recipient_id?: string | null
+          reply_to_id?: string | null
           section_id: string
           sender_name?: string | null
           user_id: string
@@ -724,6 +728,8 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          recipient_id?: string | null
+          reply_to_id?: string | null
           section_id?: string
           sender_name?: string | null
           user_id?: string

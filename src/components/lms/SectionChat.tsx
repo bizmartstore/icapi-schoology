@@ -9,7 +9,7 @@ import ChatMessageBubble, { type ChatMessage, type ChatProfile } from "@/compone
 
 const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boolean }) => {
   const { user, profile } = useAuth();
-  const { setActiveSectionId, markSectionRead } = useUnreadMessagesContext();
+  const { setActiveChat, markSectionRead } = useUnreadMessagesContext();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ChatProfile>>({});
   const [text, setText] = useState("");
@@ -37,6 +37,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
       .from("section_messages")
       .select("*")
       .eq("section_id", sectionId)
+      .is("recipient_id", null)
       .order("created_at", { ascending: true })
       .limit(200);
     const list = (data as ChatMessage[]) || [];
@@ -45,7 +46,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
   };
 
   useEffect(() => {
-    setActiveSectionId(sectionId);
+    setActiveChat({ sectionId, peerId: null });
     markSectionRead(sectionId);
     load();
     const ch = supabase
@@ -55,6 +56,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
         { event: "INSERT", schema: "public", table: "section_messages", filter: `section_id=eq.${sectionId}` },
         (payload) => {
           const m = payload.new as ChatMessage;
+          if (m.recipient_id) return;
           setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
           fetchProfiles([m.user_id]);
           if (m.user_id !== user?.id) markSectionRead(sectionId);
@@ -62,7 +64,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
       )
       .subscribe();
     return () => {
-      setActiveSectionId(null);
+      setActiveChat(null);
       supabase.removeChannel(ch);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -125,7 +127,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Write a message…"
-            className="text-xs h-9"
+            className="text-xs h-9 allow-select"
             disabled={sending}
           />
           <Button type="submit" size="icon" className="h-9 w-9 rounded-xl" disabled={sending || !text.trim()}>

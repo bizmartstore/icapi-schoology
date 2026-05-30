@@ -7,6 +7,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { UnreadMessagesProvider } from "@/contexts/UnreadMessagesContext";
 import InstallPWA from "@/components/lms/InstallPWA";
+import DisableTextCopy from "@/components/lms/DisableTextCopy";
 import Index from "./pages/Index.tsx";
 import SubjectDetail from "./pages/SubjectDetail.tsx";
 import CalendarPage from "./pages/CalendarPage.tsx";
@@ -98,6 +99,7 @@ const App = () => (
           <UnreadMessagesProvider>
           <ProfileGate>
           <InstallPWA />
+          <DisableTextCopy />
           <Routes>
             <Route path="/" element={<Index />} />
             <Route path="/subjects" element={<Index />} />

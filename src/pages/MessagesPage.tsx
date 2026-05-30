@@ -1,23 +1,41 @@
-import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState, useMemo } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import LMSHeader from "@/components/lms/LMSHeader";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
 import ChatMessageBubble, { type ChatMessage, type ChatProfile } from "@/components/lms/ChatMessageBubble";
-import { Send, Inbox, Lock } from "lucide-react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Send, Inbox, Lock, Users, User, X } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUnreadMessagesContext } from "@/contexts/UnreadMessagesContext";
 import { useSectionMembership } from "@/hooks/useSectionMembership";
+import { privateThreadKey } from "@/lib/chat-read";
 
-type SectionConv = {
-  id: string;
-  name: string;
-  lastMsg: string;
-  time: string;
+type InboxRow = {
+  key: string;
+  sectionId: string;
+  sectionName: string;
+  peerId: string | null;
+  peerName: string;
+  subtitle: string;
+  isGroup: boolean;
+  isAdviser: boolean;
   unread: number;
+};
+
+type SelectedChat = {
+  sectionId: string;
+  sectionName: string;
+  peerId: string | null;
+  peerName: string;
+};
+
+const displayName = (message: ChatMessage, p?: ChatProfile) => {
+  if (message.sender_name?.trim()) return message.sender_name.trim();
+  if (p) return `${p.first_name} ${p.last_name}`.trim();
+  return "Member";
 };
 
 const fmtRelative = (iso: string) => {
@@ -27,28 +45,33 @@ const fmtRelative = (iso: string) => {
   if (mins < 60) return `${mins}m ago`;
   const hrs = Math.floor(mins / 60);
   if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  return `${days}d ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
 };
 
 const MessagesPage = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile, roles } = useAuth();
   const { memberSectionIds, isMemberOfAny } = useSectionMembership();
-  const { unreadBySection, setActiveSectionId, markSectionRead } = useUnreadMessagesContext();
+  const {
+    unreadBySection,
+    unreadByPrivate,
+    setActiveChat,
+    markSectionRead,
+    markPrivateRead,
+  } = useUnreadMessagesContext();
   const isTeacher = roles.includes("teacher");
 
-  const [conversations, setConversations] = useState<SectionConv[]>([]);
-  const [selectedSection, setSelectedSection] = useState<string | null>(null);
-  const [selectedName, setSelectedName] = useState("");
+  const [inbox, setInbox] = useState<InboxRow[]>([]);
+  const [selected, setSelected] = useState<SelectedChat | null>(null);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [profiles, setProfiles] = useState<Record<string, ChatProfile>>({});
   const [text, setText] = useState("");
+  const [replyingTo, setReplyingTo] = useState<ChatMessage | null>(null);
   const [sending, setSending] = useState(false);
   const [loading, setLoading] = useState(true);
   const [teacherSectionIds, setTeacherSectionIds] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
-  const sectionNamesRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const loadTeacherSections = async () => {
@@ -68,114 +91,156 @@ const MessagesPage = () => {
   const sectionIds = isTeacher ? teacherSectionIds : memberSectionIds;
   const hasSections = sectionIds.length > 0;
 
-  const buildConversations = (
-    sections: { id: string; name: string }[],
-    lastBySection: Record<string, { content: string; created_at: string; user_id: string }>
-  ): SectionConv[] => {
-    const convs = sections.map((s) => {
-      const last = lastBySection[s.id];
-      return {
-        id: s.id,
-        name: s.name,
-        lastMsg: last?.content || "No messages yet",
-        time: last ? fmtRelative(last.created_at) : "",
-        unread: unreadBySection[s.id] || 0,
-      };
+  const replyMap = useMemo(() => {
+    const map: Record<string, ChatMessage> = {};
+    messages.forEach((m) => {
+      map[m.id] = m;
     });
-    convs.sort((a, b) => {
+    return map;
+  }, [messages]);
+
+  const loadInbox = async () => {
+    if (!user || !hasSections) {
+      setInbox([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    const rows: InboxRow[] = [];
+
+    const { data: sections } = await supabase
+      .from("sections")
+      .select("id, name, teacher_id")
+      .in("id", sectionIds);
+
+    for (const sec of sections || []) {
+      const sectionId = sec.id as string;
+      const sectionName = sec.name as string;
+      const adviserId = sec.teacher_id as string;
+
+      const { data: lastGroup } = await supabase
+        .from("section_messages")
+        .select("content, created_at")
+        .eq("section_id", sectionId)
+        .is("recipient_id", null)
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      rows.push({
+        key: `group:${sectionId}`,
+        sectionId,
+        sectionName,
+        peerId: null,
+        peerName: sectionName,
+        subtitle: lastGroup?.[0]?.content || "Section group chat",
+        isGroup: true,
+        isAdviser: false,
+        unread: unreadBySection[sectionId] || 0,
+      });
+
+      const peerIds = new Set<string>();
+      if (adviserId && adviserId !== user.id) peerIds.add(adviserId);
+
+      const { data: members } = await supabase
+        .from("section_members")
+        .select("student_id")
+        .eq("section_id", sectionId);
+      (members || []).forEach((m: { student_id: string }) => {
+        if (m.student_id !== user.id) peerIds.add(m.student_id);
+      });
+
+      if (peerIds.size > 0) {
+        const { data: peerProfiles } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name, avatar_data")
+          .in("user_id", [...peerIds]);
+
+        const profileBatch = (peerProfiles || []) as ChatProfile[];
+        setProfiles((prev) => {
+          const next = { ...prev };
+          profileBatch.forEach((p) => (next[p.user_id] = p));
+          return next;
+        });
+
+        for (const p of profileBatch) {
+          const peerId = p.user_id;
+          const peerName = `${p.first_name} ${p.last_name}`.trim();
+          const { data: lastPriv } = await supabase
+            .from("section_messages")
+            .select("content, created_at")
+            .eq("section_id", sectionId)
+            .not("recipient_id", "is", null)
+            .or(
+              `and(user_id.eq.${user.id},recipient_id.eq.${peerId}),and(user_id.eq.${peerId},recipient_id.eq.${user.id})`,
+            )
+            .order("created_at", { ascending: false })
+            .limit(1);
+
+          rows.push({
+            key: `priv:${sectionId}:${peerId}`,
+            sectionId,
+            sectionName,
+            peerId,
+            peerName,
+            subtitle: lastPriv?.[0]?.content || "Private chat",
+            isGroup: false,
+            isAdviser: peerId === adviserId,
+            unread: unreadByPrivate[privateThreadKey(sectionId, peerId)] || 0,
+          });
+        }
+      }
+    }
+
+    rows.sort((a, b) => {
       if (a.unread !== b.unread) return b.unread - a.unread;
-      if (a.time && !b.time) return -1;
-      if (!a.time && b.time) return 1;
-      return 0;
+      return a.sectionName.localeCompare(b.sectionName);
     });
-    return convs;
+
+    setInbox(rows);
+    setLoading(false);
   };
 
   useEffect(() => {
-    const loadConversations = async () => {
-      if (!user || !hasSections) {
-        setConversations([]);
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-
-      const { data: sections } = await supabase.from("sections").select("id, name").in("id", sectionIds);
-      const names: Record<string, string> = {};
-      (sections || []).forEach((s: { id: string; name: string }) => {
-        names[s.id] = s.name;
-      });
-      sectionNamesRef.current = names;
-
-      const { data: allMsgs } = await supabase
-        .from("section_messages")
-        .select("section_id, content, created_at, user_id")
-        .in("section_id", sectionIds)
-        .order("created_at", { ascending: false });
-
-      const lastBySection: Record<string, { content: string; created_at: string; user_id: string }> = {};
-      (allMsgs || []).forEach((m: { section_id: string; content: string; created_at: string; user_id: string }) => {
-        if (!lastBySection[m.section_id]) {
-          lastBySection[m.section_id] = { content: m.content, created_at: m.created_at, user_id: m.user_id };
-        }
-      });
-
-      setConversations(buildConversations((sections || []) as { id: string; name: string }[], lastBySection));
-      setLoading(false);
-    };
-
-    loadConversations();
+    loadInbox();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, sectionIds.join(","), hasSections]);
 
   useEffect(() => {
-    setConversations((prev) =>
-      prev.map((c) => ({ ...c, unread: unreadBySection[c.id] || 0 })).sort((a, b) => {
-        if (a.unread !== b.unread) return b.unread - a.unread;
-        return 0;
-      })
+    setInbox((prev) =>
+      prev
+        .map((r) => ({
+          ...r,
+          unread: r.peerId
+            ? unreadByPrivate[privateThreadKey(r.sectionId, r.peerId)] || 0
+            : unreadBySection[r.sectionId] || 0,
+        }))
+        .sort((a, b) => {
+          if (a.unread !== b.unread) return b.unread - a.unread;
+          return 0;
+        }),
     );
-  }, [unreadBySection]);
+  }, [unreadBySection, unreadByPrivate]);
 
   useEffect(() => {
-    if (!user || !hasSections) return;
-
-    const onNewMessage = (payload: { new: Record<string, unknown> }) => {
-      const m = payload.new as {
-        section_id: string;
-        content: string;
-        created_at: string;
-      };
-      if (!sectionIds.includes(m.section_id)) return;
-
-      setConversations((prev) => {
-        const idx = prev.findIndex((c) => c.id === m.section_id);
-        const name = idx >= 0 ? prev[idx].name : sectionNamesRef.current[m.section_id] || "Section";
-        const unread = unreadBySection[m.section_id] || 0;
-        const updated: SectionConv = {
-          id: m.section_id,
-          name,
-          lastMsg: m.content,
-          time: fmtRelative(m.created_at),
-          unread,
-        };
-        if (idx >= 0) {
-          const next = [...prev];
-          next.splice(idx, 1);
-          next.unshift(updated);
-          return next;
-        }
-        return [updated, ...prev];
+    const sectionParam = searchParams.get("section");
+    const peerParam = searchParams.get("peer");
+    if (!sectionParam || !hasSections) return;
+    const row = inbox.find(
+      (r) =>
+        r.sectionId === sectionParam &&
+        (peerParam ? r.peerId === peerParam : r.peerId === null),
+    );
+    if (row) {
+      openChat({
+        sectionId: row.sectionId,
+        sectionName: row.sectionName,
+        peerId: row.peerId,
+        peerName: row.peerName,
       });
-    };
-
-    const ch = supabase
-      .channel("messages-inbox")
-      .on("postgres_changes", { event: "INSERT", schema: "public", table: "section_messages" }, onNewMessage)
-      .subscribe();
-    return () => { supabase.removeChannel(ch); };
-  }, [user?.id, sectionIds.join(","), hasSections, unreadBySection]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams, inbox.length, hasSections]);
 
   const fetchProfiles = async (ids: string[]) => {
     const missing = ids.filter((i) => !profiles[i]);
@@ -193,74 +258,127 @@ const MessagesPage = () => {
     }
   };
 
-  const loadMessages = async (sectionId: string) => {
-    const { data } = await supabase
+  const loadMessages = async (chat: SelectedChat) => {
+    let query = supabase
       .from("section_messages")
       .select("*")
-      .eq("section_id", sectionId)
+      .eq("section_id", chat.sectionId)
       .order("created_at", { ascending: true })
       .limit(200);
+
+    if (chat.peerId) {
+      query = query
+        .not("recipient_id", "is", null)
+        .or(
+          `and(user_id.eq.${user!.id},recipient_id.eq.${chat.peerId}),and(user_id.eq.${chat.peerId},recipient_id.eq.${user!.id})`,
+        );
+    } else {
+      query = query.is("recipient_id", null);
+    }
+
+    const { data } = await query;
     const list = (data as ChatMessage[]) || [];
     setMessages(list);
-    fetchProfiles([...new Set(list.map((m) => m.user_id))]);
+    const ids = new Set(list.map((m) => m.user_id));
+    const replyIds = [...new Set(list.map((m) => m.reply_to_id).filter(Boolean))] as string[];
+    if (replyIds.length > 0) {
+      const { data: parents } = await supabase
+        .from("section_messages")
+        .select("id, user_id")
+        .in("id", replyIds);
+      (parents || []).forEach((p: { user_id: string }) => ids.add(p.user_id));
+    }
+    fetchProfiles([...ids]);
   };
 
   useEffect(() => {
-    if (!selectedSection) {
-      setActiveSectionId(null);
+    if (!selected || !user) {
+      setActiveChat(null);
       return;
     }
-    setActiveSectionId(selectedSection);
-    markSectionRead(selectedSection);
-    loadMessages(selectedSection);
 
+    setActiveChat({ sectionId: selected.sectionId, peerId: selected.peerId });
+    if (selected.peerId) markPrivateRead(selected.sectionId, selected.peerId);
+    else markSectionRead(selected.sectionId);
+
+    loadMessages(selected);
+
+    const filter = `section_id=eq.${selected.sectionId}`;
     const ch = supabase
-      .channel(`messages-${selectedSection}`)
+      .channel(`messages-${selected.sectionId}-${selected.peerId || "group"}`)
       .on(
         "postgres_changes",
-        { event: "INSERT", schema: "public", table: "section_messages", filter: `section_id=eq.${selectedSection}` },
+        { event: "INSERT", schema: "public", table: "section_messages", filter },
         (payload) => {
           const m = payload.new as ChatMessage;
+          const isPrivate = Boolean(m.recipient_id);
+          const inThread =
+            !selected.peerId
+              ? !isPrivate
+              : isPrivate &&
+                ((m.user_id === user.id && m.recipient_id === selected.peerId) ||
+                  (m.user_id === selected.peerId && m.recipient_id === user.id));
+
+          if (!inThread) return;
           setMessages((prev) => (prev.some((x) => x.id === m.id) ? prev : [...prev, m]));
           fetchProfiles([m.user_id]);
-          if (m.user_id !== user?.id) markSectionRead(selectedSection);
-        }
+          if (m.user_id !== user.id) {
+            if (selected.peerId) markPrivateRead(selected.sectionId, selected.peerId);
+            else markSectionRead(selected.sectionId);
+          }
+        },
       )
       .subscribe();
 
     return () => {
-      setActiveSectionId(null);
+      setActiveChat(null);
       supabase.removeChannel(ch);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedSection]);
+  }, [selected?.sectionId, selected?.peerId, user?.id]);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [messages.length, replyingTo?.id]);
 
-  const openChat = (conv: SectionConv) => {
-    setSelectedSection(conv.id);
-    setSelectedName(conv.name);
-    markSectionRead(conv.id);
+  const openChat = (chat: SelectedChat) => {
+    setSelected(chat);
+    setReplyingTo(null);
+    if (chat.peerId) markPrivateRead(chat.sectionId, chat.peerId);
+    else markSectionRead(chat.sectionId);
   };
 
   const send = async () => {
     const content = text.trim();
-    if (!content || !user || !selectedSection) return;
+    if (!content || !user || !selected) return;
     setSending(true);
     const senderName = profile ? `${profile.first_name} ${profile.last_name}`.trim() : "Member";
     const { error } = await supabase.from("section_messages").insert({
-      section_id: selectedSection,
+      section_id: selected.sectionId,
       user_id: user.id,
       content,
       sender_name: senderName,
+      recipient_id: selected.peerId,
+      reply_to_id: replyingTo?.id || null,
     });
-    if (!error) setText("");
+    if (!error) {
+      setText("");
+      setReplyingTo(null);
+    }
     setSending(false);
   };
 
   const fmtTime = (s: string) => new Date(s).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+
+  const replyPreviewFor = (msg: ChatMessage) => {
+    if (!msg.reply_to_id) return null;
+    const parent = replyMap[msg.reply_to_id] || messages.find((m) => m.id === msg.reply_to_id);
+    if (!parent) return { author: "Message", content: "…" };
+    return {
+      author: displayName(parent, profiles[parent.user_id]),
+      content: parent.content,
+    };
+  };
 
   if (!hasSections) {
     return (
@@ -270,9 +388,8 @@ const MessagesPage = () => {
           <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center">
             <Lock className="h-10 w-10 text-primary mx-auto mb-3" />
             <p className="text-sm font-bold text-foreground">
-              {isTeacher ? "Create or join a section to use messages" : "Join a section to chat with classmates"}
+              {isTeacher ? "Create or advise a section to use messages" : "Join a section to chat with your class"}
             </p>
-            <p className="text-xs text-muted-foreground mt-1">Section chat lets you communicate with your class in real time.</p>
             {isTeacher && (
               <Button size="sm" className="mt-4 rounded-xl" onClick={() => navigate("/sections")}>
                 Go to Sections
@@ -284,21 +401,34 @@ const MessagesPage = () => {
     );
   }
 
-  if (selectedSection) {
+  if (selected) {
     return (
       <div className="min-h-screen bg-background flex flex-col">
         <LMSHeader />
         <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col">
           <div className="bg-card border-b border-border px-4 py-3 flex items-center gap-3">
-            <button type="button" onClick={() => { setSelectedSection(null); setMessages([]); }} className="text-sm text-primary font-medium">
+            <button
+              type="button"
+              onClick={() => {
+                setSelected(null);
+                setMessages([]);
+                setReplyingTo(null);
+                navigate("/messages", { replace: true });
+              }}
+              className="text-sm text-primary font-medium"
+            >
               ← Back
             </button>
             <Avatar className="h-8 w-8">
-              <AvatarFallback className="bg-primary text-primary-foreground text-xs">{selectedName.charAt(0)}</AvatarFallback>
+              <AvatarFallback className="bg-primary text-primary-foreground text-xs">
+                {selected.peerName.charAt(0)}
+              </AvatarFallback>
             </Avatar>
-            <div>
-              <p className="text-sm font-bold text-foreground">{selectedName}</p>
-              <p className="text-[10px] text-muted-foreground">Section Chat · Live</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold text-foreground truncate">{selected.peerName}</p>
+              <p className="text-[10px] text-muted-foreground">
+                {selected.peerId ? `Private · ${selected.sectionName}` : "Section group chat · Live"}
+              </p>
             </div>
           </div>
           <div className="flex-1 p-4 space-y-3 overflow-y-auto">
@@ -312,21 +442,37 @@ const MessagesPage = () => {
                   profile={profiles[msg.user_id]}
                   isMine={msg.user_id === user?.id}
                   fmtTime={fmtTime}
+                  replyPreview={replyPreviewFor(msg)}
+                  onReply={() => setReplyingTo(msg)}
                 />
               ))
             )}
             <div ref={endRef} />
           </div>
+          {replyingTo && (
+            <div className="bg-muted/50 border-t border-border px-4 py-2 flex items-center gap-2 text-xs">
+              <span className="text-muted-foreground flex-1 truncate">
+                Replying to <span className="font-bold">{displayName(replyingTo, profiles[replyingTo.user_id])}</span>:{" "}
+                {replyingTo.content.slice(0, 60)}
+              </span>
+              <button type="button" onClick={() => setReplyingTo(null)} aria-label="Cancel reply">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+          )}
           <form
-            onSubmit={(e) => { e.preventDefault(); send(); }}
+            onSubmit={(e) => {
+              e.preventDefault();
+              send();
+            }}
             className="bg-card border-t border-border p-3"
           >
             <div className="flex items-center gap-2">
               <Input
                 value={text}
                 onChange={(e) => setText(e.target.value)}
-                className="flex-1 bg-muted rounded-full px-4 py-2 text-sm"
-                placeholder="Type a message..."
+                className="flex-1 bg-muted rounded-full px-4 py-2 text-sm allow-select"
+                placeholder={replyingTo ? "Write a reply…" : "Type a message…"}
                 disabled={sending}
               />
               <Button type="submit" size="icon" className="h-9 w-9 rounded-full shrink-0" disabled={sending || !text.trim()}>
@@ -339,46 +485,83 @@ const MessagesPage = () => {
     );
   }
 
+  const grouped = inbox.reduce<Record<string, InboxRow[]>>((acc, row) => {
+    if (!acc[row.sectionName]) acc[row.sectionName] = [];
+    acc[row.sectionName].push(row);
+    return acc;
+  }, {});
+
   return (
     <div className="min-h-screen bg-background pb-8">
       <LMSHeader />
       <div className="max-w-3xl mx-auto">
         <QuickAccessMenu />
         <div className="px-4">
-          <h2 className="text-base font-bold text-foreground mb-3">Messages</h2>
+          <h2 className="text-base font-bold text-foreground mb-1">Messages</h2>
+          <p className="text-[11px] text-muted-foreground mb-3">
+            Section group chat, private messages with your adviser, and classmates.
+          </p>
           {loading ? (
-            <div className="text-center py-8 text-sm text-muted-foreground">Loading conversations...</div>
-          ) : conversations.length === 0 ? (
+            <div className="text-center py-8 text-sm text-muted-foreground">Loading conversations…</div>
+          ) : inbox.length === 0 ? (
             <div className="text-center py-8">
               <Inbox className="h-10 w-10 text-muted-foreground mx-auto mb-2" />
-              <p className="text-sm text-muted-foreground">No section chats available</p>
+              <p className="text-sm text-muted-foreground">No chats available</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              {conversations.map((c, i) => (
-                <button
-                  key={c.id}
-                  type="button"
-                  onClick={() => openChat(c)}
-                  className="w-full bg-card rounded-2xl p-3 px-4 card-shadow flex items-center gap-3 text-left hover:card-shadow-hover transition-all animate-fade-in"
-                  style={{ animationDelay: `${i * 60}ms` }}
-                >
-                  <Avatar className="h-10 w-10">
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">{c.name.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between">
-                      <p className="text-sm font-semibold text-foreground">{c.name}</p>
-                      {c.time && <span className="text-[10px] text-muted-foreground">{c.time}</span>}
-                    </div>
-                    <p className="text-xs text-muted-foreground truncate">{c.lastMsg}</p>
+            <div className="space-y-4 pb-4">
+              {Object.entries(grouped).map(([sectionName, rows]) => (
+                <div key={sectionName}>
+                  <p className="text-[11px] font-extrabold text-primary mb-2 uppercase tracking-wide">{sectionName}</p>
+                  <div className="space-y-2">
+                    {rows.map((c) => (
+                      <button
+                        key={c.key}
+                        type="button"
+                        onClick={() =>
+                          openChat({
+                            sectionId: c.sectionId,
+                            sectionName: c.sectionName,
+                            peerId: c.peerId,
+                            peerName: c.peerName,
+                          })
+                        }
+                        className="w-full bg-card rounded-2xl p-3 px-4 card-shadow flex items-center gap-3 text-left hover:card-shadow-hover transition-all"
+                      >
+                        <Avatar className="h-10 w-10">
+                          {c.isGroup ? (
+                            <AvatarFallback className="bg-primary/10 text-primary">
+                              <Users className="h-5 w-5" />
+                            </AvatarFallback>
+                          ) : (
+                            <>
+                              <AvatarImage src={profiles[c.peerId!]?.avatar_data || undefined} />
+                              <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
+                                <User className="h-4 w-4" />
+                              </AvatarFallback>
+                            </>
+                          )}
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-sm font-semibold text-foreground truncate">
+                              {c.isGroup ? "Section Chat" : c.peerName}
+                              {c.isAdviser && !c.isGroup && (
+                                <span className="ml-1 text-[9px] font-bold text-primary">· Adviser</span>
+                              )}
+                            </p>
+                          </div>
+                          <p className="text-xs text-muted-foreground truncate">{c.subtitle}</p>
+                        </div>
+                        {c.unread > 0 && (
+                          <span className="h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1.5">
+                            {c.unread > 9 ? "9+" : c.unread}
+                          </span>
+                        )}
+                      </button>
+                    ))}
                   </div>
-                  {c.unread > 0 && (
-                    <span className="h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1.5">
-                      {c.unread > 9 ? "9+" : c.unread}
-                    </span>
-                  )}
-                </button>
+                </div>
               ))}
             </div>
           )}
