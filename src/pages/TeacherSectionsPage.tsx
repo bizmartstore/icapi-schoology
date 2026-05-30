@@ -16,6 +16,8 @@ import {
 import { toast } from "sonner";
 import LMSHeader from "@/components/lms/LMSHeader";
 import ImageUploadField from "@/components/lms/ImageUploadField";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
+import { isValidJoinPasscode, setSectionJoinPasscode } from "@/lib/section-passcode";
 
 type Section = {
   id: string;
@@ -54,6 +56,8 @@ const TeacherSectionsPage = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<Section | null>(null);
   const [form, setForm] = useState<Partial<Section>>({});
+  const [joinPasscode, setJoinPasscode] = useState("");
+  const [changePasscode, setChangePasscode] = useState(false);
 
   // Curriculum dialog (Subjects + Schedule + Announcements per section)
   const [curOpen, setCurOpen] = useState<Section | null>(null);
@@ -140,26 +144,49 @@ const TeacherSectionsPage = () => {
   const openCreate = () => {
     setEditing(null);
     setForm({ name: "", description: "", grade_level: "", school_level: "junior_high_school", color: "from-primary to-primary/70", is_active: true });
+    setJoinPasscode("");
+    setChangePasscode(false);
     setDialogOpen(true);
   };
-  const openEdit = (s: Section) => { setEditing(s); setForm(s); setDialogOpen(true); };
+  const openEdit = (s: Section) => {
+    setEditing(s);
+    setForm(s);
+    setJoinPasscode("");
+    setChangePasscode(false);
+    setDialogOpen(true);
+  };
 
   const saveSection = async () => {
     if (!form.name?.trim()) { toast.error("Section name is required"); return; }
+    const needsPasscode = !editing || changePasscode;
+    if (needsPasscode && !isValidJoinPasscode(joinPasscode)) {
+      toast.error("Enter a 4-digit join passcode (numbers only)");
+      return;
+    }
+
     if (editing) {
       const { error } = await supabase.from("sections").update({
         name: form.name, description: form.description, grade_level: form.grade_level,
         school_level: form.school_level, cover_image_url: form.cover_image_url, color: form.color, is_active: form.is_active,
       }).eq("id", editing.id);
       if (error) return toast.error(error.message);
+      if (changePasscode) {
+        const { error: passErr } = await setSectionJoinPasscode(editing.id, joinPasscode);
+        if (passErr) return toast.error(passErr.message);
+      }
       toast.success("Section updated");
     } else {
-      const { error } = await supabase.from("sections").insert({
+      const { data: created, error } = await supabase.from("sections").insert({
         teacher_id: user!.id, name: form.name!, description: form.description || null,
         grade_level: form.grade_level || null, school_level: (form.school_level as any) || null,
         cover_image_url: form.cover_image_url || null, color: form.color || null,
-      });
+      }).select("id").single();
       if (error) return toast.error(error.message);
+      const { error: passErr } = await setSectionJoinPasscode(created.id, joinPasscode);
+      if (passErr) {
+        await supabase.from("sections").delete().eq("id", created.id);
+        return toast.error(passErr.message);
+      }
       toast.success("Section created");
     }
     setDialogOpen(false);
@@ -422,6 +449,31 @@ const TeacherSectionsPage = () => {
                 </SelectContent>
               </Select>
             </div>
+            {editing && !changePasscode ? (
+              <Button type="button" variant="outline" className="w-full rounded-xl text-xs" onClick={() => setChangePasscode(true)}>
+                Change join passcode (4 digits)
+              </Button>
+            ) : (
+              <div className="space-y-2">
+                <Label className="text-xs">{editing ? "New join passcode *" : "Join passcode (4 digits) *"}</Label>
+                <p className="text-[10px] text-muted-foreground">Students must enter this code before they can request to join.</p>
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={4}
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    value={joinPasscode}
+                    onChange={setJoinPasscode}
+                  >
+                    <InputOTPGroup>
+                      {[0, 1, 2, 3].map((i) => (
+                        <InputOTPSlot key={i} index={i} className="h-11 w-10 text-base font-bold" />
+                      ))}
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+              </div>
+            )}
             <Button className="w-full rounded-xl font-bold" onClick={saveSection}>
               {editing ? "Update Section" : "Create Section"}
             </Button>

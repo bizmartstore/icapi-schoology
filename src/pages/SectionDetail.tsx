@@ -2,11 +2,15 @@ import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSectionMembership } from "@/hooks/useSectionMembership";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, BookOpen, GraduationCap, CalendarClock, Users, Megaphone, Lock, Sparkles } from "lucide-react";
+import { ArrowLeft, BookOpen, GraduationCap, CalendarClock, Users, Megaphone, Lock, Sparkles, Clock } from "lucide-react";
+import { toast } from "sonner";
 import LMSHeader from "@/components/lms/LMSHeader";
 import SectionChat from "@/components/lms/SectionChat";
+import SectionJoinPasscodeDialog from "@/components/lms/SectionJoinPasscodeDialog";
+import { requestSectionJoin } from "@/lib/section-passcode";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -20,14 +24,21 @@ type Section = {
 const SectionDetail = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile, roles } = useAuth();
+  const { pendingSectionIds, refresh: refreshMembership, memberSectionIds } = useSectionMembership();
   const [section, setSection] = useState<Section | null>(null);
   const [adviser, setAdviser] = useState<any>(null);
   const [subjects, setSubjects] = useState<any[]>([]);
   const [memberCount, setMemberCount] = useState(0);
-  const [isMember, setIsMember] = useState(false);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [passcodeOpen, setPasscodeOpen] = useState(false);
+  const [submittingPasscode, setSubmittingPasscode] = useState(false);
+
+  const isStudent = roles.includes("student");
+  const isLoggedIn = !!user && profile?.approval_status === "approved";
+  const isMember = id ? memberSectionIds.includes(id) : false;
+  const isPending = id ? pendingSectionIds.includes(id) : false;
 
   useEffect(() => {
     if (!id) return;
@@ -49,16 +60,15 @@ const SectionDetail = () => {
     setSection(sec as Section | null);
 
     if (sec) {
-      const [{ data: adv }, { data: ss }, { count }, mem, { data: ann }] = await Promise.all([
+      const [{ data: adv }, { data: ss }, { count }, { data: ann }] = await Promise.all([
         supabase.from("profiles").select("user_id, first_name, last_name, email").eq("user_id", sec.teacher_id).maybeSingle(),
         supabase.from("section_subjects").select("*").eq("section_id", id),
         supabase.from("section_members").select("*", { count: "exact", head: true }).eq("section_id", id),
-        user ? supabase.from("section_members").select("id").eq("section_id", id).eq("student_id", user.id).maybeSingle() : Promise.resolve({ data: null }),
+        Promise.resolve({ data: null }),
         supabase.from("announcements").select("*").eq("section_id", id).eq("scope", "section").eq("is_active", true).order("created_at", { ascending: false }),
       ]);
       setAdviser(adv);
       setMemberCount(count || 0);
-      setIsMember(!!(mem as any)?.data);
       setAnnouncements(ann || []);
 
       const ssList = ss || [];
@@ -83,6 +93,45 @@ const SectionDetail = () => {
       })));
     }
     setLoading(false);
+  };
+
+  const handleRequestJoin = () => {
+    if (!isLoggedIn) {
+      toast.info("Please login as a student to join a section");
+      navigate("/login");
+      return;
+    }
+    if (!isStudent) {
+      toast.error("Only students can join sections");
+      return;
+    }
+    if (isPending) {
+      toast.info("Join request already sent. Waiting for teacher approval.");
+      return;
+    }
+    setPasscodeOpen(true);
+  };
+
+  const submitJoinWithPasscode = async (passcode: string) => {
+    if (!id) return;
+    setSubmittingPasscode(true);
+    const result = await requestSectionJoin(id, passcode);
+    setSubmittingPasscode(false);
+
+    if (!result.ok) {
+      if (result.reason === "invalid") toast.error("Incorrect passcode. Try again.");
+      else if (result.reason === "duplicate") toast.info("Request already sent. Waiting for teacher approval.");
+      else toast.error(result.message || "Failed to send request");
+      if (result.reason === "duplicate") {
+        setPasscodeOpen(false);
+        refreshMembership();
+      }
+      return;
+    }
+
+    toast.success("Join request sent! Waiting for teacher approval.");
+    setPasscodeOpen(false);
+    refreshMembership();
   };
 
   if (loading) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
@@ -132,11 +181,25 @@ const SectionDetail = () => {
           </div>
 
           {!isMember && (
-            <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-3 flex items-center gap-2">
-              <Lock className="h-4 w-4 text-primary flex-shrink-0" />
-              <p className="text-[11px] text-foreground">
-                Join this section to access subjects, schedules and section announcements.
-              </p>
+            <div className="rounded-xl border border-primary/30 bg-gradient-to-br from-primary/10 to-accent/10 p-3 space-y-2">
+              <div className="flex items-start gap-2">
+                <Lock className="h-4 w-4 text-primary flex-shrink-0 mt-0.5" />
+                <p className="text-[11px] text-foreground">
+                  {isPending
+                    ? "Your join request is pending adviser approval."
+                    : "Enter your adviser's 4-digit passcode to request joining this section."}
+                </p>
+              </div>
+              {isStudent && isLoggedIn && !isPending && (
+                <Button size="sm" className="w-full rounded-xl text-xs font-bold h-9" onClick={handleRequestJoin}>
+                  <Sparkles className="h-3.5 w-3.5 mr-1" /> Request to Join
+                </Button>
+              )}
+              {isPending && (
+                <div className="flex items-center justify-center gap-1 text-warning text-[11px] font-bold">
+                  <Clock className="h-3.5 w-3.5" /> Pending approval
+                </div>
+              )}
             </div>
           )}
 
@@ -230,6 +293,14 @@ const SectionDetail = () => {
           )}
         </div>
       </div>
+
+      <SectionJoinPasscodeDialog
+        open={passcodeOpen}
+        onOpenChange={setPasscodeOpen}
+        sectionName={section.name}
+        submitting={submittingPasscode}
+        onSubmit={submitJoinWithPasscode}
+      />
     </div>
   );
 };

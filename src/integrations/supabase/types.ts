@@ -1028,6 +1028,14 @@ export type Database = {
         Args: { _section_id: string; _user_id: string }
         Returns: boolean
       }
+      request_section_join: {
+        Args: { p_section_id: string; p_passcode: string }
+        Returns: undefined
+      }
+      set_section_join_passcode: {
+        Args: { p_section_id: string; p_passcode: string }
+        Returns: undefined
+      }
       submit_quiz: { Args: { _answers: Json; _quiz_id: string }; Returns: Json }
     }
     Enums: {
