@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import {
   ArrowLeft, CheckCircle2, XCircle, Users, Shield, Image, BookOpen,
   Megaphone, FileText, GraduationCap, Plus, Pencil, Trash2, Save, UserCheck, X, School,
+  Upload, Loader2, Copy,
 } from "lucide-react";
 
 type AdminTab = "users" | "banners" | "subjects" | "assignments" | "sections" | "announcements" | "tasks" | "lessons";
@@ -41,6 +42,13 @@ const COLOR_OPTIONS = [
 
 const ICON_OPTIONS = ["Calculator", "BookText", "FlaskConical", "Languages", "Globe2", "Music", "Wrench", "BookOpen", "Lightbulb", "Palette"];
 
+const ALL_GRADES = Array.from({ length: 10 }, (_, i) => `Grade ${i + 1}`);
+
+const gradeToSchoolLevel = (gradeLabel: string): "elementary" | "junior_high_school" => {
+  const num = parseInt(gradeLabel.replace(/\D/g, ""), 10);
+  return num <= 6 ? "elementary" : "junior_high_school";
+};
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const { roles, user } = useAuth();
@@ -61,6 +69,8 @@ const AdminDashboard = () => {
   const [editDialog, setEditDialog] = useState<{ open: boolean; type: AdminTab; item: any | null }>({ open: false, type: "banners", item: null });
   const [assignDialog, setAssignDialog] = useState(false);
   const [assignForm, setAssignForm] = useState<{ teacher_id: string; subject_id: string }>({ teacher_id: "", subject_id: "" });
+  const [bulkCopyGrade, setBulkCopyGrade] = useState("Grade 1");
+  const [bulkCopying, setBulkCopying] = useState(false);
 
   useEffect(() => {
     if (!isAdmin) { navigate("/"); return; }
@@ -138,6 +148,58 @@ const AdminDashboard = () => {
     const { error } = await supabase.from("teacher_subjects").delete().eq("id", id);
     if (error) return toast.error(error.message);
     toast.success("Assignment removed");
+    fetchAll();
+  };
+
+  const bulkCopySubjectsToAllGrades = async () => {
+    const sourceSubjects = subjects.filter((s) => s.grade_level === bulkCopyGrade);
+    if (sourceSubjects.length === 0) {
+      toast.error(`No subjects found for ${bulkCopyGrade}. Add subjects to this grade first.`);
+      return;
+    }
+
+    setBulkCopying(true);
+    const existingKeys = new Set(subjects.map((s) => `${s.name.toLowerCase()}|${s.grade_level}`));
+    const toInsert: {
+      name: string;
+      icon_name: string;
+      color: string;
+      school_level: "elementary" | "junior_high_school";
+      grade_level: string;
+      sort_order: number;
+      is_active: boolean;
+    }[] = [];
+
+    for (const targetGrade of ALL_GRADES) {
+      for (const src of sourceSubjects) {
+        const key = `${src.name.toLowerCase()}|${targetGrade}`;
+        if (existingKeys.has(key)) continue;
+        toInsert.push({
+          name: src.name,
+          icon_name: src.icon_name || "BookOpen",
+          color: src.color || "bg-subject-math",
+          school_level: gradeToSchoolLevel(targetGrade),
+          grade_level: targetGrade,
+          sort_order: src.sort_order ?? 0,
+          is_active: true,
+        });
+        existingKeys.add(key);
+      }
+    }
+
+    if (toInsert.length === 0) {
+      setBulkCopying(false);
+      toast.info("All subjects from this grade already exist across Grades 1–10.");
+      return;
+    }
+
+    const { error } = await supabase.from("subjects").insert(toInsert);
+    setBulkCopying(false);
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success(`Added ${toInsert.length} subject(s) across Grades 1–10 from ${bulkCopyGrade}.`);
     fetchAll();
   };
 
@@ -230,8 +292,11 @@ const AdminDashboard = () => {
                 </div>
                 {banners.map((b) => (
                   <div key={b.id} className="bg-card rounded-2xl p-4 card-shadow">
-                    <div className="flex items-start justify-between">
-                      <div>
+                    <div className="flex items-start justify-between gap-3">
+                      {b.image_url && (
+                        <img src={b.image_url} alt={b.title} className="h-14 w-24 rounded-lg object-cover flex-shrink-0" />
+                      )}
+                      <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold text-foreground">{b.title}</h3>
                         <p className="text-[11px] text-muted-foreground">{b.subtitle}</p>
                         <p className="text-[10px] text-muted-foreground mt-1">Order: {b.sort_order}</p>
@@ -263,6 +328,38 @@ const AdminDashboard = () => {
                 <p className="text-[10px] text-muted-foreground -mt-2">
                   Tip: assign teachers to subjects in the <span className="font-bold text-primary">Assign</span> tab.
                 </p>
+                <div className="bg-muted/30 rounded-2xl p-3 space-y-2">
+                  <p className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                    <Copy className="h-3.5 w-3.5 text-primary" /> Copy Subjects to All Grades
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">
+                    Select a grade whose subjects you want to replicate, then copy them to Grades 1–10 (skips duplicates).
+                  </p>
+                  <div className="flex gap-2">
+                    <Select value={bulkCopyGrade} onValueChange={setBulkCopyGrade}>
+                      <SelectTrigger className="rounded-xl h-9 text-sm flex-1">
+                        <SelectValue placeholder="Source grade" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {ALL_GRADES.map((g) => (
+                          <SelectItem key={g} value={g}>{g}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button
+                      size="sm"
+                      className="rounded-xl text-xs whitespace-nowrap"
+                      onClick={bulkCopySubjectsToAllGrades}
+                      disabled={bulkCopying}
+                    >
+                      {bulkCopying ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Copy className="h-3 w-3 mr-1" />}
+                      Copy All
+                    </Button>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">
+                    {subjects.filter((s) => s.grade_level === bulkCopyGrade).length} subject(s) in {bulkCopyGrade}
+                  </p>
+                </div>
                 {["elementary", "junior_high_school"].map((level) => (
                   <div key={level}>
                     <h4 className="text-xs font-bold text-primary uppercase tracking-wider mb-2 mt-3">
@@ -574,8 +671,11 @@ const AdminDashboard = () => {
 
 // ============ EDIT DIALOG ============
 const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; type: AdminTab; item: any | null }; onClose: () => void; onSaved: () => void }) => {
+  const { user } = useAuth();
   const [form, setForm] = useState<Record<string, any>>({});
   const [saving, setSaving] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const bannerFileRef = useRef<HTMLInputElement>(null);
   const isEdit = !!dialog.item;
 
   useEffect(() => {
@@ -594,6 +694,34 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   };
 
   const set = (key: string, val: any) => setForm((p) => ({ ...p, [key]: val }));
+
+  const uploadBannerImage = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast.error("Please select an image file");
+      return;
+    }
+    if (f.size > 5 * 1024 * 1024) {
+      toast.error("Image too large (max 5MB)");
+      return;
+    }
+    if (!user) return;
+    setUploading(true);
+    const ext = f.name.split(".").pop() || "jpg";
+    const path = `${user.id}/${Date.now()}.${ext}`;
+    const { error } = await supabase.storage.from("banners").upload(path, f, { upsert: true, contentType: f.type });
+    if (error) {
+      setUploading(false);
+      toast.error(error.message);
+      return;
+    }
+    const { data } = supabase.storage.from("banners").getPublicUrl(path);
+    set("image_url", data.publicUrl);
+    setUploading(false);
+    if (bannerFileRef.current) bannerFileRef.current.value = "";
+    toast.success("Banner image uploaded");
+  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -630,8 +758,31 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
             <>
               <Field label="Title" value={form.title} onChange={(v) => set("title", v)} />
               <Field label="Subtitle" value={form.subtitle} onChange={(v) => set("subtitle", v)} />
-              <Field label="Image URL" value={form.image_url} onChange={(v) => set("image_url", v)} placeholder="https://..." />
-              <Field label="Gradient" value={form.gradient} onChange={(v) => set("gradient", v)} />
+              <div className="space-y-1.5">
+                <Label className="text-xs">Banner Image</Label>
+                {form.image_url && (
+                  <img src={form.image_url} alt="Banner preview" className="w-full h-28 rounded-xl object-cover border border-border" />
+                )}
+                <input
+                  ref={bannerFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={uploadBannerImage}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full rounded-xl h-9 text-sm"
+                  onClick={() => bannerFileRef.current?.click()}
+                  disabled={uploading}
+                >
+                  {uploading ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Upload className="h-3.5 w-3.5 mr-1.5" />}
+                  {form.image_url ? "Replace Image" : "Upload Image"}
+                </Button>
+                <Field label="Or paste Image URL" value={form.image_url} onChange={(v) => set("image_url", v)} placeholder="https://..." />
+              </div>
+              <Field label="Gradient" value={form.gradient} onChange={(v) => set("gradient", v)} placeholder="from-primary/80 via-primary/50 to-primary/30" />
               <NumberField label="Sort Order" value={form.sort_order} onChange={(v) => set("sort_order", v)} />
             </>
           )}
@@ -649,7 +800,20 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
                   </SelectContent>
                 </Select>
               </div>
-              <Field label="Grade Level" value={form.grade_level} onChange={(v) => set("grade_level", v)} placeholder="e.g. Grade 4" />
+              <div className="space-y-1.5">
+                <Label className="text-xs">Grade Level</Label>
+                <Select value={form.grade_level} onValueChange={(v) => {
+                  set("grade_level", v);
+                  set("school_level", gradeToSchoolLevel(v));
+                }}>
+                  <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue placeholder="Select grade" /></SelectTrigger>
+                  <SelectContent>
+                    {ALL_GRADES.map((g) => (
+                      <SelectItem key={g} value={g}>{g}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Icon</Label>
                 <Select value={form.icon_name} onValueChange={(v) => set("icon_name", v)}>
