@@ -83,7 +83,11 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   };
 
   useEffect(() => {
-    // If link was shared with ?guest=1 or #guest, sign out so the recipient
+    const safetyTimer = window.setTimeout(() => setLoading(false), 10_000);
+    return () => window.clearTimeout(safetyTimer);
+  }, []);
+
+  useEffect(() => {
     // does not inherit the sender's session.
     try {
       const url = new URL(window.location.href);
@@ -133,6 +137,15 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    const refreshOnVisible = () => {
+      if (document.visibilityState !== "visible" || !user) return;
+      void Promise.all([fetchProfile(user.id), fetchRoles(user.id)]);
+    };
+    document.addEventListener("visibilitychange", refreshOnVisible);
+    return () => document.removeEventListener("visibilitychange", refreshOnVisible);
+  }, [user?.id]);
 
   return (
     <AuthContext.Provider value={{ user, session, profile, roles, loading, signOut, refreshProfile }}>

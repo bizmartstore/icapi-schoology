@@ -1,11 +1,12 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import LMSHeader from "@/components/lms/LMSHeader";
+import QuizCertificate, { QuizCertificateData } from "@/components/lms/QuizCertificate";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, FileText, BookMarked, ListChecks, Trophy, Calendar, Link as LinkIcon, GraduationCap, CheckCircle2, Lock, Sparkles, PartyPopper, Undo2, Download, File as FileIcon, Image as ImageIcon } from "lucide-react";
+import { ArrowLeft, FileText, BookMarked, ListChecks, Calendar, Link as LinkIcon, GraduationCap, CheckCircle2, Lock, Sparkles, Undo2, Download, File as FileIcon, Image as ImageIcon, Award } from "lucide-react";
 import { toast } from "sonner";
 
 type Tab = "activities" | "quizzes" | "materials";
@@ -13,7 +14,7 @@ type Tab = "activities" | "quizzes" | "materials";
 const StudentSubjectView = () => {
   const { ssId } = useParams<{ ssId: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [searchParams] = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab) || "activities";
   const quizParam = searchParams.get("quiz");
@@ -34,21 +35,56 @@ const StudentSubjectView = () => {
   const [choicesMap, setChoicesMap] = useState<Record<string, any[]>>({});
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [resultDialog, setResultDialog] = useState<{ score: number; total: number } | null>(null);
+  const [certificate, setCertificate] = useState<QuizCertificateData | null>(null);
   const [autoStarted, setAutoStarted] = useState(false);
 
-  // Auto-start a specific quiz if requested via ?quiz=:id
+  const buildCertificate = useCallback(
+    (quiz: any, attempt: any): QuizCertificateData => ({
+      studentName: profile ? `${profile.first_name} ${profile.last_name}` : "Student",
+      quizTitle: quiz.title,
+      subjectName: meta?.subject?.name,
+      sectionName: meta?.section?.name,
+      score: attempt.score,
+      totalPoints: attempt.total_points,
+      attemptId: attempt.id,
+      completedAt: attempt.submitted_at,
+    }),
+    [profile, meta]
+  );
+
+  const clearQuizParams = useCallback(() => {
+    const next = new URLSearchParams(searchParams);
+    next.delete("quiz");
+    next.delete("return");
+    navigate({ pathname: `/learn/${ssId}`, search: next.toString() ? `?${next.toString()}` : "" }, { replace: true });
+  }, [navigate, searchParams, ssId]);
+
+  const goHomeFromCertificate = useCallback(() => {
+    setCertificate(null);
+    try {
+      sessionStorage.removeItem("pendingTaskDialog");
+    } catch {}
+    navigate("/", { replace: true });
+  }, [navigate]);
+
+  // Auto-open certificate for completed quiz linked from home (?quiz=...)
   useEffect(() => {
-    if (autoStarted || !quizParam || quizzes.length === 0) return;
+    if (loading || autoStarted || !quizParam || quizzes.length === 0) return;
     const q = quizzes.find((x) => x.id === quizParam);
-    if (q && !attempts[q.id]) {
-      setAutoStarted(true);
+    if (!q) return;
+
+    setAutoStarted(true);
+    const attempt = attempts[q.id];
+    if (attempt) {
+      setCertificate(buildCertificate(q, attempt));
+      if (returnTo === "home") {
+        clearQuizParams();
+      }
+    } else if (isMember) {
       startQuiz(q);
-    } else if (q) {
-      setAutoStarted(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quizParam, quizzes, attempts]);
+  }, [quizParam, quizzes, attempts, loading, autoStarted, isMember, returnTo]);
 
   useEffect(() => {
     if (!ssId) return;
@@ -133,7 +169,10 @@ const StudentSubjectView = () => {
 
   const startQuiz = async (q: any) => {
     if (!isMember) return toast.error("Join the section first");
-    if (attempts[q.id]) return toast.info("You've already attempted this quiz");
+    if (attempts[q.id]) {
+      setCertificate(buildCertificate(q, attempts[q.id]));
+      return;
+    }
     const { data: qq } = await supabase.from("quiz_questions").select("*").eq("quiz_id", q.id).order("position");
     const qIds = (qq || []).map((x: any) => x.id);
     const { data: cc } = qIds.length
@@ -152,17 +191,38 @@ const StudentSubjectView = () => {
 
   const submitQuiz = async () => {
     if (!playing) return;
+    if (attempts[playing.id]) {
+      toast.info("You already submitted this quiz.");
+      setPlaying(null);
+      setCertificate(buildCertificate(playing, attempts[playing.id]));
+      return;
+    }
     const unanswered = questions.filter((q) => !answers[q.id]);
     if (unanswered.length > 0 && !confirm(`${unanswered.length} unanswered. Submit anyway?`)) return;
     setSubmitting(true);
     const payload = questions.map((q) => ({ question_id: q.id, choice_id: answers[q.id] || null }));
     const { data, error } = await supabase.rpc("submit_quiz", { _quiz_id: playing.id, _answers: payload });
     setSubmitting(false);
-    if (error) return toast.error(error.message);
+    if (error) {
+      if (error.message.includes("Already attempted")) {
+        await load();
+        toast.info("This quiz was already submitted.");
+        setPlaying(null);
+        return;
+      }
+      return toast.error(error.message);
+    }
     const r = data as any;
-    setResultDialog({ score: r.score, total: r.total });
+    const attempt = {
+      id: r.attempt_id as string,
+      score: r.score as number,
+      total_points: r.total as number,
+      submitted_at: new Date().toISOString(),
+    };
+    setAttempts((prev) => ({ ...prev, [playing.id]: attempt }));
+    setCertificate(buildCertificate(playing, attempt));
     setPlaying(null);
-    load();
+    clearQuizParams();
   };
 
   if (loading || !meta) return <div className="min-h-screen flex items-center justify-center text-sm text-muted-foreground">Loading…</div>;
@@ -353,9 +413,14 @@ const StudentSubjectView = () => {
                   </div>
                   <div className="mt-2">
                     {a ? (
-                      <div className="text-[11px] text-success font-bold flex items-center gap-1">
-                        <CheckCircle2 className="h-3 w-3" /> Submitted · {pct}%
-                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="rounded-lg text-[11px] h-7"
+                        onClick={() => setCertificate(buildCertificate(q, a))}
+                      >
+                        <Award className="h-3 w-3 mr-1" /> View Certificate
+                      </Button>
                     ) : isMember ? (
                       <Button size="sm" className="rounded-lg text-[11px] h-7" onClick={() => startQuiz(q)}>
                         <Sparkles className="h-3 w-3 mr-1" /> Take Quiz
@@ -417,30 +482,13 @@ const StudentSubjectView = () => {
         </div>
       )}
 
-      {/* Result celebration */}
-      {resultDialog && (
-        <div className="fixed inset-0 z-50 bg-background/95 backdrop-blur flex items-center justify-center p-4" onClick={() => setResultDialog(null)}>
-          <div className="bg-card rounded-3xl p-6 max-w-sm w-full text-center card-shadow border border-border/50 animate-fade-in">
-            <div className="mx-auto h-20 w-20 rounded-full shopee-gradient flex items-center justify-center mb-3">
-              <PartyPopper className="h-10 w-10 text-primary-foreground" />
-            </div>
-            <h3 className="text-2xl font-extrabold text-foreground">Submitted!</h3>
-            <p className="text-sm text-muted-foreground mt-1">Your score</p>
-            <p className="text-5xl font-extrabold text-primary mt-2">{resultDialog.score}<span className="text-2xl text-muted-foreground">/{resultDialog.total}</span></p>
-            <p className="text-xs text-muted-foreground mt-1">
-              {resultDialog.total ? Math.round((resultDialog.score / resultDialog.total) * 100) : 0}%
-            </p>
-            <Button
-              className="w-full mt-4 rounded-xl"
-              onClick={() => {
-                setResultDialog(null);
-                if (returnTo === "home") navigate("/");
-              }}
-            >
-              {returnTo === "home" ? "Back to Task" : "Done"}
-            </Button>
-          </div>
-        </div>
+      {certificate && (
+        <QuizCertificate
+          data={certificate}
+          onHome={returnTo === "home" || !!quizParam ? goHomeFromCertificate : undefined}
+          onClose={returnTo === "home" || !!quizParam ? undefined : () => setCertificate(null)}
+          homeLabel="Back to Home"
+        />
       )}
     </div>
   );

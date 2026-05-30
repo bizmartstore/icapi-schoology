@@ -7,6 +7,7 @@ import { CalendarClock, ClipboardCheck, PenLine, CheckCircle2, Loader2, Undo2, S
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import QuizCertificate, { QuizCertificateData } from "@/components/lms/QuizCertificate";
 import { Textarea } from "@/components/ui/textarea";
 import {
   AlertDialog,
@@ -108,13 +109,14 @@ const AttachmentPreview = ({ url, name, type, accent = "primary" }: { url: strin
 
 const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [details, setDetails] = useState<any>(null);
   const [submission, setSubmission] = useState<any>(null);
   const [working, setWorking] = useState(false);
   const [note, setNote] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [certificate, setCertificate] = useState<QuizCertificateData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [, setNow] = useState(Date.now());
   const [confirmUndo, setConfirmUndo] = useState(false);
@@ -259,12 +261,31 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
   };
 
   const goToQuiz = () => {
-    // Persist the task so we can re-open this dialog after returning from the quiz
+    if (submission) {
+      onOpenChange(false);
+      setCertificate({
+        studentName: profile ? `${profile.first_name} ${profile.last_name}` : "Student",
+        quizTitle: item.title,
+        subjectName: item.subject_name,
+        sectionName: item.section_name,
+        score: submission.score,
+        totalPoints: submission.total_points,
+        attemptId: submission.id,
+        completedAt: submission.submitted_at,
+      });
+      return;
+    }
     try {
       sessionStorage.setItem("pendingTaskDialog", JSON.stringify(item));
     } catch {}
     onOpenChange(false);
     navigate(`/learn/${item.ss_id}?tab=quizzes&quiz=${item.id}&return=home`);
+  };
+
+  const closeCertificate = () => {
+    setCertificate(null);
+    onOpenChange(false);
+    navigate("/");
   };
 
   return (
@@ -379,13 +400,14 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
                 </div>
               )}
 
-              {!isActivity && submission && (
+              {!isActivity && submission && !certificate && (
                 <div className="rounded-xl border border-success/30 bg-gradient-to-br from-success/10 to-success/5 p-4 text-center">
                   <Trophy className="h-6 w-6 text-success mx-auto mb-1" />
-                  <p className="text-[10px] font-bold uppercase text-success tracking-wide">Your Result</p>
+                  <p className="text-[10px] font-bold uppercase text-success tracking-wide">Quiz Completed</p>
                   <p className="text-2xl font-extrabold text-success mt-1">
                     {submission.score}<span className="text-base text-success/60">/{submission.total_points}</span>
                   </p>
+                  <p className="text-[10px] text-muted-foreground mt-1">Tap View Certificate below</p>
                 </div>
               )}
             </>
@@ -420,7 +442,7 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
                 View Subject
               </Button>
               <Button className="flex-1 rounded-xl h-10 text-xs font-bold" onClick={goToQuiz}>
-                <Trophy className="h-3.5 w-3.5 mr-1" /> View Result
+                <Trophy className="h-3.5 w-3.5 mr-1" /> View Certificate
               </Button>
             </div>
           ) : (
@@ -460,6 +482,9 @@ const TaskDetailsDialog = ({ item, open, onOpenChange, onChanged }: Props) => {
           </AlertDialogContent>
         </AlertDialog>
       </DialogContent>
+      {certificate && (
+        <QuizCertificate data={certificate} onHome={closeCertificate} homeLabel="Back to Home" />
+      )}
     </Dialog>
   );
 };
