@@ -183,12 +183,43 @@ export type Database = {
         }
         Relationships: []
       }
+      event_images: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          image_data: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          image_data: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          image_data?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_images_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       events: {
         Row: {
           content: string | null
           created_at: string
           id: string
-          image_data: string | null
           is_active: boolean
           sort_order: number
           title: string
@@ -198,7 +229,6 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
-          image_data?: string | null
           is_active?: boolean
           sort_order?: number
           title?: string
@@ -208,7 +238,6 @@ export type Database = {
           content?: string | null
           created_at?: string
           id?: string
-          image_data?: string | null
           is_active?: boolean
           sort_order?: number
           title?: string

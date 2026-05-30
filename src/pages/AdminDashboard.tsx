@@ -109,7 +109,10 @@ const AdminDashboard = () => {
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
       supabase.from("user_roles").select("user_id, role"),
       supabase.from("banners").select("*").order("sort_order"),
-      supabase.from("events").select("*").order("sort_order"),
+      supabase
+        .from("events")
+        .select("*, event_images(id, image_data, sort_order)")
+        .order("sort_order"),
       supabase.from("subjects").select("*").order("sort_order"),
       supabase.from("announcements").select("*").order("created_at", { ascending: false }),
       supabase.from("tasks").select("*").order("created_at", { ascending: false }),
@@ -423,13 +426,25 @@ const AdminDashboard = () => {
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground -mt-2">
-                  Images are compressed and stored as codes (no storage quota). Shown in the home carousel and Events tab.
+                  Add multiple images per event — each event has its own photo carousel on the home and Events pages.
                 </p>
-                {events.map((ev) => (
+                {events.map((ev) => {
+                  const thumbs = [...(ev.event_images || [])].sort(
+                    (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
+                  );
+                  const firstImg = thumbs[0]?.image_data;
+                  return (
                   <div key={ev.id} className="bg-card rounded-2xl p-4 card-shadow">
                     <div className="flex items-start justify-between gap-3">
-                      {ev.image_data ? (
-                        <img src={ev.image_data} alt={ev.title} className="h-14 w-24 rounded-lg object-cover flex-shrink-0" />
+                      {firstImg ? (
+                        <div className="relative flex-shrink-0">
+                          <img src={firstImg} alt={ev.title} className="h-14 w-24 rounded-lg object-cover" />
+                          {thumbs.length > 1 && (
+                            <span className="absolute -bottom-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full bg-primary text-primary-foreground text-[8px] font-bold flex items-center justify-center">
+                              {thumbs.length}
+                            </span>
+                          )}
+                        </div>
                       ) : (
                         <div className="h-14 w-24 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
                           <PartyPopper className="h-5 w-5 text-muted-foreground" />
@@ -438,7 +453,9 @@ const AdminDashboard = () => {
                       <div className="flex-1 min-w-0">
                         <h3 className="text-sm font-bold text-foreground">{ev.title}</h3>
                         <p className="text-[11px] text-muted-foreground line-clamp-2">{ev.content}</p>
-                        <p className="text-[10px] text-muted-foreground mt-1">Order: {ev.sort_order}</p>
+                        <p className="text-[10px] text-muted-foreground mt-1">
+                          Order: {ev.sort_order} · {thumbs.length} image{thumbs.length === 1 ? "" : "s"}
+                        </p>
                       </div>
                       <div className="flex items-center gap-1">
                         <Switch checked={ev.is_active} onCheckedChange={() => handleToggleActive("events", ev.id, ev.is_active)} />
@@ -451,7 +468,8 @@ const AdminDashboard = () => {
                       </div>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -825,13 +843,32 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   const isEdit = !!dialog.item;
 
   useEffect(() => {
-    if (dialog.open) setForm(dialog.item || getDefaults(dialog.type));
+    if (!dialog.open) return;
+    if (dialog.type === "events") {
+      if (dialog.item) {
+        const sorted = [...(dialog.item.event_images || [])].sort(
+          (a: { sort_order: number }, b: { sort_order: number }) => a.sort_order - b.sort_order,
+        );
+        const images =
+          sorted.length > 0
+            ? sorted.map((im: { image_data: string }) => ({ image_data: im.image_data }))
+            : dialog.item.image_data
+              ? [{ image_data: dialog.item.image_data }]
+              : [];
+        const { event_images: _ei, image_data: _legacy, ...rest } = dialog.item;
+        setForm({ ...rest, images });
+      } else {
+        setForm({ ...getDefaults("events"), images: [] });
+      }
+      return;
+    }
+    setForm(dialog.item || getDefaults(dialog.type));
   }, [dialog.open, dialog.item, dialog.type]);
 
   const getDefaults = (type: AdminTab): Record<string, any> => {
     switch (type) {
       case "banners": return { title: "", subtitle: "", image_url: "", gradient: "from-primary/80 to-primary/40", sort_order: 0, is_active: true };
-      case "events": return { title: "", content: "", image_data: "", sort_order: 0, is_active: true };
+      case "events": return { title: "", content: "", images: [] as { image_data: string }[], sort_order: 0, is_active: true };
       case "subjects": return { name: "", icon_name: "BookOpen", color: "bg-subject-math", school_level: "elementary", grade_level: "Grade 4", sort_order: 0, is_active: true };
       case "announcements": return { title: "", from_name: "", preview_text: "", full_content: "", image_url: "", is_new: true, is_active: true, scope: "general" };
       case "tasks": return { title: "", subject_name: "", due_date: "", task_type: "Assignment", is_urgent: false, is_active: true };
@@ -871,14 +908,18 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
     if (f) void uploadBannerFile(f);
   };
 
-  const uploadEventFile = async (f: File) => {
+  const uploadEventFiles = async (files: File[]) => {
+    if (!files.length) return;
     setUploading(true);
     try {
-      const dataUrl = await compressToEventDataUrl(f);
-      set("image_data", dataUrl);
-      toast.success("Event image ready — save to publish");
+      const dataUrls = await Promise.all(files.map((f) => compressToEventDataUrl(f)));
+      setForm((p) => ({
+        ...p,
+        images: [...(p.images || []), ...dataUrls.map((image_data) => ({ image_data }))],
+      }));
+      toast.success(`${dataUrls.length} image${dataUrls.length === 1 ? "" : "s"} added — save to publish`);
     } catch (e) {
-      toast.error(e instanceof Error ? e.message : "Could not process image");
+      toast.error(e instanceof Error ? e.message : "Could not process images");
     } finally {
       setUploading(false);
       if (eventFileRef.current) eventFileRef.current.value = "";
@@ -886,8 +927,15 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
   };
 
   const onEventFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const f = e.target.files?.[0];
-    if (f) void uploadEventFile(f);
+    const files = Array.from(e.target.files || []);
+    if (files.length) void uploadEventFiles(files);
+  };
+
+  const removeEventImage = (index: number) => {
+    setForm((p) => ({
+      ...p,
+      images: (p.images || []).filter((_: unknown, i: number) => i !== index),
+    }));
   };
 
   const handleSave = async () => {
@@ -906,17 +954,61 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
 
     if (table === "events") {
       if (uploading) {
-        toast.error("Please wait for the image to finish processing");
+        toast.error("Please wait for images to finish processing");
         return;
       }
-      if (!form.image_data?.trim()) {
-        toast.error("Please upload an event image");
+      const images: { image_data: string }[] = form.images || [];
+      if (!images.length) {
+        toast.error("Please add at least one image");
         return;
       }
       if (!form.title?.trim()) {
         toast.error("Please enter a title");
         return;
       }
+
+      setSaving(true);
+      const { id, created_at, updated_at, images: _imgs, event_images: _ei, image_data: _legacy, ...eventData } = form;
+
+      let eventId = form.id as string | undefined;
+      let error;
+
+      if (isEdit && eventId) {
+        ({ error } = await supabase.from("events").update(eventData).eq("id", eventId));
+      } else {
+        const { data: inserted, error: insertErr } = await supabase
+          .from("events")
+          .insert(eventData)
+          .select("id")
+          .single();
+        error = insertErr;
+        eventId = inserted?.id;
+      }
+
+      if (error || !eventId) {
+        setSaving(false);
+        toast.error(error?.message || "Could not save event");
+        return;
+      }
+
+      await supabase.from("event_images").delete().eq("event_id", eventId);
+      const { error: imgErr } = await supabase.from("event_images").insert(
+        images.map((img, i) => ({
+          event_id: eventId,
+          image_data: img.image_data,
+          sort_order: i,
+        })),
+      );
+
+      setSaving(false);
+      if (imgErr) {
+        toast.error(imgErr.message);
+        return;
+      }
+      toast.success(isEdit ? "Updated!" : "Created!");
+      onClose();
+      onSaved();
+      return;
     }
 
     setSaving(true);
@@ -1033,49 +1125,52 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
                 />
               </div>
               <div className="space-y-1.5">
-                <Label className="text-xs">Event Image *</Label>
+                <Label className="text-xs">Event Images * (multiple)</Label>
                 <p className="text-[10px] text-muted-foreground">
-                  Compressed and stored as a code in the database (saves storage quota).
+                  Select several photos — they carousel together for this event. Compressed codes, no storage quota.
                 </p>
                 <input
                   ref={eventFileRef}
                   type="file"
                   accept="image/jpeg,image/png,image/gif,image/webp"
+                  multiple
                   className="hidden"
                   onChange={onEventFileInput}
                 />
-                <button
+                <Button
                   type="button"
+                  variant="outline"
+                  size="sm"
+                  className="w-full rounded-xl text-xs"
                   onClick={() => !uploading && eventFileRef.current?.click()}
                   disabled={uploading}
-                  className="w-full rounded-xl border-2 border-dashed border-border bg-muted/20 overflow-hidden transition-colors hover:border-primary/50 disabled:opacity-60"
                 >
-                  {form.image_data ? (
-                    <img src={form.image_data} alt="Event preview" className="w-full h-36 object-cover" />
+                  {uploading ? (
+                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
                   ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 py-10 px-4 text-muted-foreground">
-                      {uploading ? (
-                        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                      ) : (
-                        <Upload className="h-8 w-8" />
-                      )}
-                      <span className="text-xs font-semibold">
-                        {uploading ? "Processing…" : "Tap to upload image"}
-                      </span>
-                    </div>
+                    <Upload className="h-3 w-3 mr-1" />
                   )}
-                </button>
-                {form.image_data && (
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-xl text-xs text-destructive"
-                    onClick={() => set("image_data", "")}
-                    disabled={uploading}
-                  >
-                    Remove image
-                  </Button>
+                  {uploading ? "Processing…" : "Add images"}
+                </Button>
+                {(form.images || []).length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {(form.images as { image_data: string }[]).map((img, idx) => (
+                      <div key={idx} className="relative rounded-lg overflow-hidden border border-border aspect-[4/3]">
+                        <img src={img.image_data} alt="" className="w-full h-full object-cover" />
+                        <button
+                          type="button"
+                          onClick={() => removeEventImage(idx)}
+                          className="absolute top-1 right-1 h-5 w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center"
+                          aria-label="Remove image"
+                        >
+                          ×
+                        </button>
+                        <span className="absolute bottom-1 left-1 text-[8px] font-bold bg-black/50 text-white px-1 rounded">
+                          {idx + 1}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
               <NumberField label="Sort Order" value={form.sort_order} onChange={(v) => set("sort_order", v)} />
@@ -1210,7 +1305,7 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
               saving ||
               uploading ||
               (dialog.type === "banners" && !form.image_url?.trim()) ||
-              (dialog.type === "events" && (!form.image_data?.trim() || !form.title?.trim()))
+              (dialog.type === "events" && (!(form.images?.length) || !form.title?.trim()))
             }
           >
             <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : isEdit ? "Update" : "Create"}
