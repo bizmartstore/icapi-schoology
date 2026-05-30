@@ -53,7 +53,7 @@ const StudentSubjectView = () => {
   useEffect(() => {
     if (!ssId) return;
     load();
-    const ch = supabase
+    const ch = api
       .channel(`learn-${ssId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "activities", filter: `section_subject_id=eq.${ssId}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` }, load)
@@ -96,7 +96,7 @@ const StudentSubjectView = () => {
       setAttempts(m);
     }
     if (user && (acts || []).length) {
-      const { data: sub } = await supabase
+      const { data: sub } = await api
         .from("activity_submissions")
         .select("*")
         .in("activity_id", (acts || []).map((a: any) => a.id))
@@ -114,7 +114,7 @@ const StudentSubjectView = () => {
     if (!user) return toast.error("Sign in to submit");
     if (!isMember) return toast.error("Join the section first");
     if (currentlySubmitted) {
-      const { error } = await supabase
+      const { error } = await api
         .from("activity_submissions")
         .delete()
         .eq("activity_id", activityId)
@@ -122,7 +122,7 @@ const StudentSubjectView = () => {
       if (error) return toast.error(error.message);
       toast.success("Marked as not submitted");
     } else {
-      const { error } = await supabase
+      const { error } = await api
         .from("activity_submissions")
         .insert({ activity_id: activityId, student_id: user.id });
       if (error) return toast.error(error.message);

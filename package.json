@@ -15,8 +15,9 @@
     "test:watch": "vitest",
     "setup:banners": "node --env-file=.env scripts/apply-banners-storage.mjs",
     "setup:banners:cli": "supabase db query --linked -f supabase/migrations/20260530120000_banners_storage_bucket.sql",
-    "supabase:link": "supabase link --project-ref idgmcjscgttagullrxvy",
-    "supabase:push": "supabase db push"
+    "supabase:link": "supabase link --project-ref mvxyqbjwnpwcovkarwqa",
+    "supabase:push": "supabase db push",
+    "db:push:sql": "node --env-file=.env scripts/push-all-migrations.mjs"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

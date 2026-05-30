@@ -33,7 +33,7 @@ const SectionsList = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const { data: sectionData } = await supabase
+    const { data: sectionData } = await api
       .from("sections")
       .select("*")
       .eq("is_active", true)
@@ -43,7 +43,7 @@ const SectionsList = () => {
 
     if (list.length) {
       const teacherIds = [...new Set(list.map((s) => s.teacher_id))];
-      const { data: teacherData } = await supabase
+      const { data: teacherData } = await api
         .from("profiles")
         .select("user_id, first_name, last_name")
         .in("user_id", teacherIds);
@@ -55,7 +55,7 @@ const SectionsList = () => {
       const counts: Record<string, number> = {};
       await Promise.all(
         list.map(async (s) => {
-          const { count } = await supabase
+          const { count } = await api
             .from("section_members")
             .select("*", { count: "exact", head: true })
             .eq("section_id", s.id);
@@ -82,7 +82,7 @@ const SectionsList = () => {
       toast.error("Only students can join sections");
       return;
     }
-    const { error } = await supabase
+    const { error } = await api
       .from("section_join_requests")
       .insert({ section_id: sectionId, student_id: user!.id });
     if (error) {

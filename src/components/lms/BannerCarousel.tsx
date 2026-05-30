@@ -17,7 +17,7 @@ const BannerCarousel = () => {
 
   useEffect(() => {
     const loadBanners = async () => {
-      const { data } = await supabase
+      const { data } = await api
         .from("banners")
         .select("*")
         .eq("is_active", true)
@@ -29,7 +29,7 @@ const BannerCarousel = () => {
 
     loadBanners();
 
-    const channel = supabase
+    const channel = api
       .channel("banner-carousel")
       .on("postgres_changes", { event: "*", schema: "public", table: "banners" }, () => {
         loadBanners();

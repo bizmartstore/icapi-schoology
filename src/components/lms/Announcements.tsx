@@ -26,7 +26,7 @@ const Announcements = () => {
 
   const load = async () => {
     // RLS handles visibility: general (everyone) + section (members + adviser)
-    const { data } = await supabase
+    const { data } = await api
       .from("announcements")
       .select("*")
       .eq("is_active", true)
@@ -36,7 +36,7 @@ const Announcements = () => {
 
   useEffect(() => {
     load();
-    const ch = supabase
+    const ch = api
       .channel("announcements-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "announcements" }, load)
       .subscribe();

@@ -204,7 +204,7 @@ const AdminDashboard = () => {
   };
 
   const updateSectionSubjectTeacher = async (ssId: string, teacherId: string) => {
-    const { error } = await supabase
+    const { error } = await api
       .from("section_subjects")
       .update({ teacher_id: teacherId })
       .eq("id", ssId);

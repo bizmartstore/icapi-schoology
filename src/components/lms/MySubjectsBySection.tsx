@@ -31,7 +31,7 @@ const MySubjectsBySection = ({ onLoadedEmpty }: { onLoadedEmpty?: (empty: boolea
       setLoading(false);
       return;
     }
-    const { data: memberships } = await supabase
+    const { data: memberships } = await api
       .from("section_members")
       .select("section_id")
       .eq("student_id", user.id);
@@ -83,7 +83,7 @@ const MySubjectsBySection = ({ onLoadedEmpty }: { onLoadedEmpty?: (empty: boolea
   useEffect(() => {
     load();
     if (!user) return;
-    const ch = supabase
+    const ch = api
       .channel(`my-subjects-${user.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "section_members", filter: `student_id=eq.${user.id}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects" }, load)

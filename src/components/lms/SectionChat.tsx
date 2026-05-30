@@ -28,7 +28,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
   };
 
   const load = async () => {
-    const { data } = await supabase
+    const { data } = await api
       .from("section_messages")
       .select("*")
       .eq("section_id", sectionId)
@@ -41,7 +41,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
 
   useEffect(() => {
     load();
-    const ch = supabase
+    const ch = api
       .channel(`section-chat-${sectionId}`)
       .on(
         "postgres_changes",
@@ -65,7 +65,7 @@ const SectionChat = ({ sectionId, canPost }: { sectionId: string; canPost: boole
     const content = text.trim();
     if (!content || !user) return;
     setSending(true);
-    const { error } = await supabase
+    const { error } = await api
       .from("section_messages")
       .insert({ section_id: sectionId, user_id: user.id, content });
     if (!error) setText("");

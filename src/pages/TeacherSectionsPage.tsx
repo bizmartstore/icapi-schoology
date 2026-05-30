@@ -70,7 +70,7 @@ const TeacherSectionsPage = () => {
   // Realtime subscriptions
   useEffect(() => {
     if (!user) return;
-    const ch = supabase
+    const ch = api
       .channel("teacher-dashboard-rt")
       .on("postgres_changes", { event: "*", schema: "public", table: "section_join_requests" }, fetchAll)
       .on("postgres_changes", { event: "*", schema: "public", table: "section_members" }, fetchAll)
@@ -84,7 +84,7 @@ const TeacherSectionsPage = () => {
   const fetchAll = async () => {
     if (!user) return;
     setLoading(true);
-    const { data: sectionData } = await supabase
+    const { data: sectionData } = await api
       .from("sections").select("*").eq("teacher_id", user.id).order("created_at", { ascending: false });
     const list = (sectionData as Section[]) || [];
     setSections(list);
@@ -469,7 +469,7 @@ const SectionCurriculumDialog = ({ section, onClose, onChanged }: { section: Sec
   useEffect(() => {
     if (!section) return;
     load();
-    const ch = supabase
+    const ch = api
       .channel(`section-curriculum-${section.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "teacher_subjects" }, () => load())
       .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects", filter: `section_id=eq.${section.id}` }, () => load())

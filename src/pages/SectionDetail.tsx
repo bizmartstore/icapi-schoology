@@ -32,7 +32,7 @@ const SectionDetail = () => {
   useEffect(() => {
     if (!id) return;
     load();
-    const ch = supabase
+    const ch = api
       .channel(`section-${id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "section_subjects", filter: `section_id=eq.${id}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "class_schedules" }, load)

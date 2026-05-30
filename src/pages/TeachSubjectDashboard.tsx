@@ -43,7 +43,7 @@ const TeachSubjectDashboard = () => {
   useEffect(() => {
     if (!ssId || !user) return;
     load();
-    const ch = supabase
+    const ch = api
       .channel(`teach-${ssId}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "activities", filter: `section_subject_id=eq.${ssId}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` }, load)

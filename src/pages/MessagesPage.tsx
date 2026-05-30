@@ -78,7 +78,7 @@ const MessagesPage = () => {
       setLoading(true);
 
       const { data: sections } = await supabase.from("sections").select("id, name").in("id", sectionIds);
-      const { data: allMsgs } = await supabase
+      const { data: allMsgs } = await api
         .from("section_messages")
         .select("section_id, content, created_at, user_id")
         .in("section_id", sectionIds)
@@ -129,7 +129,7 @@ const MessagesPage = () => {
   };
 
   const loadMessages = async (sectionId: string) => {
-    const { data } = await supabase
+    const { data } = await api
       .from("section_messages")
       .select("*")
       .eq("section_id", sectionId)
@@ -144,7 +144,7 @@ const MessagesPage = () => {
     if (!selectedSection) return;
     loadMessages(selectedSection);
 
-    const ch = supabase
+    const ch = api
       .channel(`messages-${selectedSection}`)
       .on(
         "postgres_changes",

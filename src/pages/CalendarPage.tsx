@@ -55,7 +55,7 @@ const CalendarPage = () => {
 
       setLoading(true);
 
-      const { data: ssRows } = await supabase
+      const { data: ssRows } = await api
         .from("section_subjects")
         .select("id, subject_id, section_id")
         .in("section_id", sectionIds);

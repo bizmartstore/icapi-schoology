@@ -50,7 +50,7 @@ const NotificationsPopover = () => {
 
   useEffect(() => {
     load();
-    const ch = supabase
+    const ch = api
       .channel("notif-bell")
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "announcements" }, load)
       .on("postgres_changes", { event: "INSERT", schema: "public", table: "activities" }, load)

@@ -45,7 +45,7 @@ const ModulesShowcase = () => {
 
   useEffect(() => {
     (async () => {
-      const { data } = await supabase
+      const { data } = await api
         .from("materials")
         .select("id,title,description,url,file_type,file_name,file_size,created_at,section_subjects(subjects(name,grade_level,school_level,color),sections(name))")
         .order("created_at", { ascending: false })
