@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import SectionJoinPasscodeDialog from "@/components/lms/SectionJoinPasscodeDialog";
 import { requestSectionJoin } from "@/lib/section-passcode";
+import { getSectionCoverSrc } from "@/lib/section-image";
 
 type Section = {
   id: string;
@@ -16,6 +17,7 @@ type Section = {
   grade_level: string | null;
   school_level: string | null;
   cover_image_url: string | null;
+  cover_image_data: string | null;
   color: string | null;
 };
 
@@ -172,8 +174,8 @@ const SectionsList = () => {
                 className="min-w-[180px] max-w-[180px] bg-card rounded-xl border border-border/60 overflow-hidden card-shadow hover:shadow-md transition-all snap-start flex-shrink-0 group cursor-pointer"
               >
                 <div className={`relative h-16 bg-gradient-to-br ${gradient} overflow-hidden`}>
-                  {s.cover_image_url && (
-                    <img src={s.cover_image_url} alt={s.name} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80" loading="lazy" />
+                  {getSectionCoverSrc(s) && (
+                    <img src={getSectionCoverSrc(s)!} alt={s.name} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80" loading="lazy" />
                   )}
                   <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                   <div className="absolute top-1.5 left-1.5 flex gap-1">

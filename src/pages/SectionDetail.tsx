@@ -11,13 +11,16 @@ import LMSHeader from "@/components/lms/LMSHeader";
 import SectionChat from "@/components/lms/SectionChat";
 import SectionJoinPasscodeDialog from "@/components/lms/SectionJoinPasscodeDialog";
 import { requestSectionJoin } from "@/lib/section-passcode";
+import { getSectionCoverSrc } from "@/lib/section-image";
 
 const DAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 type Section = {
   id: string; name: string; description: string | null;
   grade_level: string | null; school_level: string | null;
-  cover_image_url: string | null; color: string | null;
+  cover_image_url: string | null;
+  cover_image_data: string | null;
+  color: string | null;
   teacher_id: string;
 };
 
@@ -147,8 +150,8 @@ const SectionDetail = () => {
       <LMSHeader />
       <div className="max-w-3xl mx-auto">
         <div className={`relative h-32 bg-gradient-to-br ${section.color || "from-primary to-primary/70"}`}>
-          {section.cover_image_url && (
-            <img src={section.cover_image_url} alt={section.name} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80" />
+          {getSectionCoverSrc(section) && (
+            <img src={getSectionCoverSrc(section)!} alt={section.name} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent" />
           <Button variant="ghost" size="icon" className="absolute top-3 left-3 rounded-xl text-primary-foreground hover:bg-primary-foreground/10" onClick={() => navigate("/")}>

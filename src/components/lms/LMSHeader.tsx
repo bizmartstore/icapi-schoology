@@ -1,4 +1,4 @@
-import { Search, MessageSquare, LogIn } from "lucide-react";
+import { MessageSquare, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -13,8 +13,8 @@ const LMSHeader = () => {
   const isLoggedIn = !!user && profile?.approval_status === "approved";
 
   return (
-    <header className="sticky top-0 z-50 sacred-gradient px-4 pt-3 pb-2.5 shadow-md border-b border-accent/30">
-      <div className="flex items-center gap-2.5 mb-2.5">
+    <header className="sticky top-0 z-50 sacred-gradient px-4 pt-3 pb-3 shadow-md border-b border-accent/30">
+      <div className="flex items-center gap-2.5">
         <button
           type="button"
           onClick={() => navigate("/")}
@@ -54,15 +54,6 @@ const LMSHeader = () => {
             <LogIn className="h-3.5 w-3.5 mr-1" /> Login
           </Button>
         )}
-      </div>
-
-      {/* Search bar */}
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input
-          placeholder="Search subjects, lessons..."
-          className="w-full rounded-md bg-primary-foreground border-0 px-4 pl-9 py-2 text-[13px] text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary/30 transition-all"
-        />
       </div>
     </header>
   );

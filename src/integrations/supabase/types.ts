@@ -778,6 +778,7 @@ export type Database = {
       sections: {
         Row: {
           color: string | null
+          cover_image_data: string | null
           cover_image_url: string | null
           created_at: string
           description: string | null
@@ -791,6 +792,7 @@ export type Database = {
         }
         Insert: {
           color?: string | null
+          cover_image_data?: string | null
           cover_image_url?: string | null
           created_at?: string
           description?: string | null
@@ -804,6 +806,7 @@ export type Database = {
         }
         Update: {
           color?: string | null
+          cover_image_data?: string | null
           cover_image_url?: string | null
           created_at?: string
           description?: string | null

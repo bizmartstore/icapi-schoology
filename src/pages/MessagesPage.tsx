@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import LMSHeader from "@/components/lms/LMSHeader";
 import QuickAccessMenu from "@/components/lms/QuickAccessMenu";
 import ChatMessageBubble, { type ChatMessage, type ChatProfile } from "@/components/lms/ChatMessageBubble";
+import ChatListScrollControls from "@/components/lms/ChatListScrollControls";
 import { Send, Inbox, Lock, Users, User, X } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,8 @@ const MessagesPage = () => {
   const [loading, setLoading] = useState(true);
   const [teacherSectionIds, setTeacherSectionIds] = useState<string[]>([]);
   const endRef = useRef<HTMLDivElement>(null);
+  const inboxScrollRef = useRef<HTMLDivElement>(null);
+  const messagesScrollRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const loadTeacherSections = async () => {
@@ -431,23 +434,26 @@ const MessagesPage = () => {
               </p>
             </div>
           </div>
-          <div className="flex-1 p-4 space-y-3 overflow-y-auto">
-            {messages.length === 0 ? (
-              <p className="text-center text-sm text-muted-foreground mt-8">No messages yet. Say hello! 👋</p>
-            ) : (
-              messages.map((msg) => (
-                <ChatMessageBubble
-                  key={msg.id}
-                  message={msg}
-                  profile={profiles[msg.user_id]}
-                  isMine={msg.user_id === user?.id}
-                  fmtTime={fmtTime}
-                  replyPreview={replyPreviewFor(msg)}
-                  onReply={() => setReplyingTo(msg)}
-                />
-              ))
-            )}
-            <div ref={endRef} />
+          <div className="relative flex-1 min-h-0">
+            <div ref={messagesScrollRef} className="absolute inset-0 p-4 space-y-3 overflow-y-auto">
+              {messages.length === 0 ? (
+                <p className="text-center text-sm text-muted-foreground mt-8">No messages yet. Say hello! 👋</p>
+              ) : (
+                messages.map((msg) => (
+                  <ChatMessageBubble
+                    key={msg.id}
+                    message={msg}
+                    profile={profiles[msg.user_id]}
+                    isMine={msg.user_id === user?.id}
+                    fmtTime={fmtTime}
+                    replyPreview={replyPreviewFor(msg)}
+                    onReply={() => setReplyingTo(msg)}
+                  />
+                ))
+              )}
+              <div ref={endRef} />
+            </div>
+            <ChatListScrollControls scrollRef={messagesScrollRef} className="absolute right-2 top-1/2 -translate-y-1/2 z-10" />
           </div>
           {replyingTo && (
             <div className="bg-muted/50 border-t border-border px-4 py-2 flex items-center gap-2 text-xs">
@@ -509,60 +515,68 @@ const MessagesPage = () => {
               <p className="text-sm text-muted-foreground">No chats available</p>
             </div>
           ) : (
-            <div className="space-y-4 pb-4">
-              {Object.entries(grouped).map(([sectionName, rows]) => (
-                <div key={sectionName}>
-                  <p className="text-[11px] font-extrabold text-primary mb-2 uppercase tracking-wide">{sectionName}</p>
-                  <div className="space-y-2">
-                    {rows.map((c) => (
-                      <button
-                        key={c.key}
-                        type="button"
-                        onClick={() =>
-                          openChat({
-                            sectionId: c.sectionId,
-                            sectionName: c.sectionName,
-                            peerId: c.peerId,
-                            peerName: c.peerName,
-                          })
-                        }
-                        className="w-full bg-card rounded-2xl p-3 px-4 card-shadow flex items-center gap-3 text-left hover:card-shadow-hover transition-all"
-                      >
-                        <Avatar className="h-10 w-10">
-                          {c.isGroup ? (
-                            <AvatarFallback className="bg-primary/10 text-primary">
-                              <Users className="h-5 w-5" />
-                            </AvatarFallback>
-                          ) : (
-                            <>
-                              <AvatarImage src={profiles[c.peerId!]?.avatar_data || undefined} />
-                              <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
-                                <User className="h-4 w-4" />
+            <div className="relative">
+              <div
+                ref={inboxScrollRef}
+                className="max-h-[min(62vh,520px)] overflow-y-auto pr-10 space-y-4 pb-4"
+              >
+                {Object.entries(grouped).map(([sectionName, rows]) => (
+                  <div key={sectionName}>
+                    <p className="text-[11px] font-extrabold text-primary mb-2 uppercase tracking-wide sticky top-0 bg-background/95 backdrop-blur-sm py-1 z-[1]">
+                      {sectionName}
+                    </p>
+                    <div className="space-y-2">
+                      {rows.map((c) => (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() =>
+                            openChat({
+                              sectionId: c.sectionId,
+                              sectionName: c.sectionName,
+                              peerId: c.peerId,
+                              peerName: c.peerName,
+                            })
+                          }
+                          className="w-full bg-card rounded-2xl p-3 px-4 card-shadow flex items-center gap-3 text-left hover:card-shadow-hover transition-all"
+                        >
+                          <Avatar className="h-10 w-10">
+                            {c.isGroup ? (
+                              <AvatarFallback className="bg-primary/10 text-primary">
+                                <Users className="h-5 w-5" />
                               </AvatarFallback>
-                            </>
-                          )}
-                        </Avatar>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center justify-between gap-2">
-                            <p className="text-sm font-semibold text-foreground truncate">
-                              {c.isGroup ? "Section Chat" : c.peerName}
-                              {c.isAdviser && !c.isGroup && (
-                                <span className="ml-1 text-[9px] font-bold text-primary">· Adviser</span>
-                              )}
-                            </p>
+                            ) : (
+                              <>
+                                <AvatarImage src={profiles[c.peerId!]?.avatar_data || undefined} />
+                                <AvatarFallback className="bg-primary/10 text-primary text-sm font-bold">
+                                  <User className="h-4 w-4" />
+                                </AvatarFallback>
+                              </>
+                            )}
+                          </Avatar>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-sm font-semibold text-foreground truncate">
+                                {c.isGroup ? "Section Chat" : c.peerName}
+                                {c.isAdviser && !c.isGroup && (
+                                  <span className="ml-1 text-[9px] font-bold text-primary">· Adviser</span>
+                                )}
+                              </p>
+                            </div>
+                            <p className="text-xs text-muted-foreground truncate">{c.subtitle}</p>
                           </div>
-                          <p className="text-xs text-muted-foreground truncate">{c.subtitle}</p>
-                        </div>
-                        {c.unread > 0 && (
-                          <span className="h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1.5">
-                            {c.unread > 9 ? "9+" : c.unread}
-                          </span>
-                        )}
-                      </button>
-                    ))}
+                          {c.unread > 0 && (
+                            <span className="h-5 min-w-5 rounded-full bg-destructive text-destructive-foreground text-[10px] font-bold flex items-center justify-center px-1.5">
+                              {c.unread > 9 ? "9+" : c.unread}
+                            </span>
+                          )}
+                        </button>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
+              <ChatListScrollControls scrollRef={inboxScrollRef} className="absolute right-0 top-1/2 -translate-y-1/2" />
             </div>
           )}
         </div>

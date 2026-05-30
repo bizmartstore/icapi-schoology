@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import LMSHeader from "@/components/lms/LMSHeader";
-import ImageUploadField from "@/components/lms/ImageUploadField";
+import SectionCoverUploadField from "@/components/lms/SectionCoverUploadField";
+import { getSectionCoverSrc } from "@/lib/section-image";
 import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 import { isValidJoinPasscode, setSectionJoinPasscode } from "@/lib/section-passcode";
 
@@ -26,6 +27,7 @@ type Section = {
   grade_level: string | null;
   school_level: "elementary" | "junior_high_school" | null;
   cover_image_url: string | null;
+  cover_image_data: string | null;
   color: string | null;
   is_active: boolean;
 };
@@ -164,10 +166,16 @@ const TeacherSectionsPage = () => {
       return;
     }
 
+    const coverData = (form as Section).cover_image_data?.trim() || null;
+    const coverPayload = {
+      cover_image_data: coverData,
+      cover_image_url: coverData ? null : ((form as Section).cover_image_url || null),
+    };
+
     if (editing) {
       const { error } = await supabase.from("sections").update({
         name: form.name, description: form.description, grade_level: form.grade_level,
-        school_level: form.school_level, cover_image_url: form.cover_image_url, color: form.color, is_active: form.is_active,
+        school_level: form.school_level, ...coverPayload, color: form.color, is_active: form.is_active,
       }).eq("id", editing.id);
       if (error) return toast.error(error.message);
       if (changePasscode) {
@@ -179,7 +187,7 @@ const TeacherSectionsPage = () => {
       const { data: created, error } = await supabase.from("sections").insert({
         teacher_id: user!.id, name: form.name!, description: form.description || null,
         grade_level: form.grade_level || null, school_level: (form.school_level as any) || null,
-        cover_image_url: form.cover_image_url || null, color: form.color || null,
+        ...coverPayload, color: form.color || null,
       }).select("id").single();
       if (error) return toast.error(error.message);
       const { error: passErr } = await setSectionJoinPasscode(created.id, joinPasscode);
@@ -264,7 +272,9 @@ const TeacherSectionsPage = () => {
               {sections.map((s) => (
                 <div key={s.id} className="bg-card rounded-2xl overflow-hidden card-shadow border border-border/50">
                   <div className={`h-20 bg-gradient-to-br ${s.color || "from-primary to-primary/70"} relative`}>
-                    {s.cover_image_url && <img src={s.cover_image_url} alt={s.name} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80" />}
+                    {getSectionCoverSrc(s) && (
+                      <img src={getSectionCoverSrc(s)!} alt={s.name} className="absolute inset-0 w-full h-full object-cover mix-blend-overlay opacity-80" />
+                    )}
                     <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                     <div className="absolute bottom-2 left-3 right-3 flex items-end justify-between">
                       <div>
@@ -431,15 +441,16 @@ const TeacherSectionsPage = () => {
                 </Select>
               </div>
             </div>
-            {user && (
-              <ImageUploadField
-                label="Cover Image"
-                folder="sections"
-                userId={user.id}
-                value={form.cover_image_url || ""}
-                onChange={(url) => setForm({ ...form, cover_image_url: url })}
-              />
-            )}
+            <SectionCoverUploadField
+              value={(form as Section).cover_image_data || getSectionCoverSrc(form as Section) || ""}
+              onChange={(dataUrl) =>
+                setForm({
+                  ...form,
+                  cover_image_data: dataUrl,
+                  cover_image_url: dataUrl ? null : (form as Section).cover_image_url,
+                } as Partial<Section>)
+              }
+            />
             <div>
               <Label className="text-xs">Color Theme</Label>
               <Select value={form.color || ""} onValueChange={(v) => setForm({ ...form, color: v })}>
