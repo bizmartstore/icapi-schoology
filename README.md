@@ -11,6 +11,10 @@ Copy `.env.example` to `.env` and set:
 
 Restart the dev server after changing `.env`.
 
+**Lovable preview** (`*.lovable.app`): add the same two variables under **Project → Settings → Secrets** (or Environment), then redeploy. The `POST …/__l5e/trackevents 403` message is Lovable analytics and is unrelated to Supabase.
+
+`.env` is not committed (see `.gitignore`); do not deploy with an empty publishable key.
+
 ### 2. Apply database schema (required once per new project)
 
 **Option A — Supabase CLI**
