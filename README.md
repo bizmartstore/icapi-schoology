@@ -11,7 +11,7 @@ Copy `.env.example` to `.env` and set:
 
 Restart the dev server after changing `.env`.
 
-**Lovable** (`*.lovable.app`): Production builds use committed `.env.production` and `src/config/supabase-public.ts`, so the app works even if Lovable Cloud still has an old Supabase connection with empty/wrong secrets. For a clean setup, open **Cloud → Secrets** and set (or remove stale) `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` for project `mvxyqbjwnpwcovkarwqa`, or disconnect the old Supabase integration in Lovable. The `trackevents 403` line is Lovable analytics only.
+**Lovable** (`*.lovable.app`): Production builds use committed `.env.production` and `src/config/supabase-public.ts`, so the app works even if Lovable Cloud still has an old Supabase connection with empty/wrong secrets. For a clean setup, open **Cloud → Secrets** and set (or remove stale) `VITE_SUPABASE_URL` / `VITE_SUPABASE_PUBLISHABLE_KEY` for project `mvxyqbjwnpwcovkarwqa`, or disconnect the old Supabase integration in Lovable. Lovable injects `/__l5e/events.js` on publish; `public/lovable-analytics-shim.js` blocks those analytics calls so you do not get `trackevents 403` console noise. To avoid injection entirely, deploy with `npm run deploy` (Cloudflare Workers).
 
 Local dev: copy `.env.example` → `.env` (gitignored).
 
