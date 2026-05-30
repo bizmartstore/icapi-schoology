@@ -65,19 +65,24 @@ export function inAppBrowserLabel(kind: InAppBrowserKind | null): string {
   }
 }
 
+import { markPendingInstallAfterExternal, withPwaInstallQuery } from "@/lib/pwa-install";
+
 /** Opens the current page in Chrome (Android). iOS must use the host app's "Open in browser" menu. */
 export function openInExternalBrowser(url: string = window.location.href): boolean {
   const ua = navigator.userAgent || "";
 
   if (/Android/i.test(ua)) {
+    markPendingInstallAfterExternal();
+    const targetUrl = withPwaInstallQuery(url);
+
     try {
-      const parsed = new URL(url);
+      const parsed = new URL(targetUrl);
       const path = `${parsed.host}${parsed.pathname}${parsed.search}`;
-      const fallback = encodeURIComponent(url);
+      const fallback = encodeURIComponent(targetUrl);
       window.location.href = `intent://${path}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${fallback};end`;
       return true;
     } catch {
-      window.open(url, "_blank", "noopener,noreferrer");
+      window.open(targetUrl, "_blank", "noopener,noreferrer");
       return true;
     }
   }

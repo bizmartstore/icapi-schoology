@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Download, X, Share, ExternalLink, Copy, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -7,11 +7,17 @@ import {
   isInAppBrowser,
   openInExternalBrowser,
 } from "@/lib/in-app-browser";
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
-}
+import {
+  type BeforeInstallPromptEvent,
+  cleanPwaInstallQueryFromUrl,
+  dismissInstallBanner,
+  getCapturedInstallPrompt,
+  hasForceInstallIntent,
+  isIOSDevice,
+  isStandaloneDisplay,
+  PWA_PROMPT_READY_EVENT,
+  shouldOfferInstallBanner,
+} from "@/lib/pwa-install";
 
 const InstallPWA = () => {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
@@ -20,48 +26,72 @@ const InstallPWA = () => {
   const [isStandalone, setIsStandalone] = useState(false);
   const [inAppBrowser, setInAppBrowser] = useState(false);
   const [inAppKind, setInAppKind] = useState<ReturnType<typeof getInAppBrowserKind>>(null);
+  const [forceInstall, setForceInstall] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  const applyCapturedPrompt = useCallback((prompt: BeforeInstallPromptEvent) => {
+    setDeferredPrompt(prompt);
+    setShowBanner(true);
+  }, []);
+
   useEffect(() => {
-    const standalone =
-      window.matchMedia("(display-mode: standalone)").matches ||
-      (window.navigator as Navigator & { standalone?: boolean }).standalone === true;
+    const standalone = isStandaloneDisplay();
     setIsStandalone(standalone);
 
-    const dismissed = localStorage.getItem("pwa-install-dismissed");
-    const ios = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as Window & { MSStream?: unknown }).MSStream;
+    const ios = isIOSDevice();
     setIsIOS(ios);
 
     const inApp = isInAppBrowser();
     setInAppBrowser(inApp);
     setInAppKind(getInAppBrowserKind());
 
-    if (standalone || dismissed) return;
+    const forced = hasForceInstallIntent();
+    setForceInstall(forced);
 
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setShowBanner(true);
-    };
+    if (standalone) return;
 
-    window.addEventListener("beforeinstallprompt", handler);
-
-    // iOS Safari and in-app browsers (Messenger, etc.) never get beforeinstallprompt.
-    if ((ios && !standalone) || inApp) {
+    if (shouldOfferInstallBanner(inApp, forced)) {
       setShowBanner(true);
     }
 
-    return () => window.removeEventListener("beforeinstallprompt", handler);
-  }, []);
+    const captured = getCapturedInstallPrompt();
+    if (captured) {
+      applyCapturedPrompt(captured);
+    }
+
+    const onPrompt = (e: Event) => {
+      e.preventDefault();
+      applyCapturedPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    const onPromptReady = () => {
+      const prompt = getCapturedInstallPrompt();
+      if (prompt) applyCapturedPrompt(prompt);
+    };
+
+    window.addEventListener("beforeinstallprompt", onPrompt);
+    window.addEventListener(PWA_PROMPT_READY_EVENT, onPromptReady);
+
+    if (forced) {
+      cleanPwaInstallQueryFromUrl();
+    }
+
+    return () => {
+      window.removeEventListener("beforeinstallprompt", onPrompt);
+      window.removeEventListener(PWA_PROMPT_READY_EVENT, onPromptReady);
+    };
+  }, [applyCapturedPrompt]);
 
   const handleInstall = async () => {
-    if (!deferredPrompt) return;
-    await deferredPrompt.prompt();
-    const { outcome } = await deferredPrompt.userChoice;
+    const prompt = deferredPrompt ?? getCapturedInstallPrompt();
+    if (!prompt) return;
+    await prompt.prompt();
+    const { outcome } = await prompt.userChoice;
     if (outcome === "accepted") {
       setShowBanner(false);
     }
     setDeferredPrompt(null);
+    window.__pwaInstallPrompt = undefined;
   };
 
   const handleOpenInBrowser = () => {
@@ -82,7 +112,7 @@ const InstallPWA = () => {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem("pwa-install-dismissed", "1");
+    dismissInstallBanner(inAppBrowser);
     setShowBanner(false);
   };
 
@@ -90,14 +120,19 @@ const InstallPWA = () => {
 
   const appLabel = inAppBrowserLabel(inAppKind);
   const needsExternalBrowser = inAppBrowser && !deferredPrompt;
+  const canNativeInstall = Boolean(deferredPrompt ?? getCapturedInstallPrompt());
+  const showAndroidMenuHint =
+    !isIOS && !needsExternalBrowser && !canNativeInstall && (forceInstall || !inAppBrowser);
 
   const description = needsExternalBrowser
     ? isIOS
       ? `Links opened in ${appLabel} can't install apps. Tap ⋯ (menu) → Open in Safari, then Share → Add to Home Screen.`
       : `Links opened in ${appLabel} can't install apps. Open this page in Chrome, then tap Install App.`
-    : isIOS
-      ? 'Tap Share, then "Add to Home Screen" to install the app on your phone.'
-      : "Add iCAPI LMS to your home screen for quick access like a native app.";
+    : showAndroidMenuHint
+      ? "Tap ⋮ in Chrome → Install app (or Add to Home screen) to install iCAPI LMS."
+      : isIOS
+        ? 'Tap Share, then "Add to Home Screen" to install the app on your phone.'
+        : "Add iCAPI LMS to your home screen for quick access like a native app.";
 
   return (
     <div className="fixed bottom-4 left-4 right-4 z-[100] max-w-md mx-auto animate-fade-in">
@@ -138,7 +173,7 @@ const InstallPWA = () => {
                   )}
                 </Button>
               )}
-              {!needsExternalBrowser && !isIOS && deferredPrompt && (
+              {!needsExternalBrowser && !isIOS && canNativeInstall && (
                 <Button size="sm" className="rounded-xl text-xs h-8" onClick={handleInstall}>
                   <Download className="h-3.5 w-3.5 mr-1" />
                   Install App
