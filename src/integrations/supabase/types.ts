@@ -736,6 +736,47 @@ export type Database = {
         }
         Relationships: []
       }
+      student_term_grades: {
+        Row: {
+          created_at: string
+          entered_by: string
+          final_average: number
+          id: string
+          section_subject_id: string
+          student_id: string
+          term: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          entered_by: string
+          final_average: number
+          id?: string
+          section_subject_id: string
+          student_id: string
+          term: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          entered_by?: string
+          final_average?: number
+          id?: string
+          section_subject_id?: string
+          student_id?: string
+          term?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_term_grades_section_subject_id_fkey"
+            columns: ["section_subject_id"]
+            isOneToOne: false
+            referencedRelation: "section_subjects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       section_subjects: {
         Row: {
           created_at: string

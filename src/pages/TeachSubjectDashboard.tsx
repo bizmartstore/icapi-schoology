@@ -9,11 +9,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Plus, FileText, BookMarked, ListChecks, Trophy, Trash2, Eye, EyeOff, Save, X, Calendar, Link as LinkIcon, GraduationCap, Upload, Loader2, Download, File as FileIcon } from "lucide-react";
+import { ArrowLeft, Plus, FileText, BookMarked, ListChecks, Trophy, Trash2, Eye, EyeOff, Save, X, Calendar, Link as LinkIcon, GraduationCap, Upload, Loader2, Download, File as FileIcon, ClipboardList } from "lucide-react";
+import TeacherTermGradesPanel from "@/components/lms/TeacherTermGradesPanel";
 import { toast } from "sonner";
 import ImageUploadField from "@/components/lms/ImageUploadField";
 
-type Tab = "activities" | "quizzes" | "materials" | "results";
+type Tab = "activities" | "quizzes" | "materials" | "results" | "grades";
 
 const TeachSubjectDashboard = () => {
   const { ssId } = useParams<{ ssId: string }>();
@@ -52,6 +53,7 @@ const TeachSubjectDashboard = () => {
       .on("postgres_changes", { event: "*", schema: "public", table: "materials", filter: `section_subject_id=eq.${ssId}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "quizzes", filter: `section_subject_id=eq.${ssId}` }, load)
       .on("postgres_changes", { event: "*", schema: "public", table: "quiz_attempts" }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "student_term_grades", filter: `section_subject_id=eq.${ssId}` }, load)
       .subscribe();
     return () => { supabase.removeChannel(ch); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -262,6 +264,7 @@ const TeachSubjectDashboard = () => {
     { key: "quizzes", label: "Quizzes", icon: ListChecks, count: quizzes.length },
     { key: "materials", label: "Materials", icon: BookMarked, count: materials.length },
     { key: "results", label: "Results", icon: Trophy, count: 0 },
+    { key: "grades", label: "Term Grades", icon: ClipboardList, count: members.length },
   ];
 
   return (
@@ -293,7 +296,7 @@ const TeachSubjectDashboard = () => {
                 tab === t.key ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted text-muted-foreground hover:bg-muted/80"
               }`}
             >
-              <t.icon className="h-3 w-3" /> {t.label}{t.key !== "results" ? ` (${t.count})` : ""}
+              <t.icon className="h-3 w-3" /> {t.label}{t.key !== "results" && t.key !== "grades" ? ` (${t.count})` : ""}
             </button>
           ))}
         </div>
@@ -455,6 +458,11 @@ const TeachSubjectDashboard = () => {
                 );
               })
             )
+          )}
+
+          {/* TERM GRADES */}
+          {tab === "grades" && ssId && (
+            <TeacherTermGradesPanel sectionSubjectId={ssId} members={members} />
           )}
         </div>
       </div>
