@@ -29,9 +29,15 @@ const LoginPage = () => {
         .from("profiles")
         .select("approval_status, user_type")
         .eq("user_id", data.user.id)
-        .single();
+        .maybeSingle();
 
-      if (profile && profile.approval_status !== "approved") {
+      if (!profile) {
+        toast.info("Please complete your profile to continue.");
+        navigate("/complete-profile");
+        return;
+      }
+
+      if (profile.approval_status !== "approved") {
         await supabase.auth.signOut();
         toast.error(
           profile.user_type === "teacher"

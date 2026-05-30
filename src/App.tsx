@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Route, Routes, Navigate } from "react-router-dom";
+import { BrowserRouter, Route, Routes, Navigate, useLocation } from "react-router-dom";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -19,6 +19,7 @@ import TeacherSectionsPage from "./pages/TeacherSectionsPage.tsx";
 import SectionDetail from "./pages/SectionDetail.tsx";
 import TeachSubjectDashboard from "./pages/TeachSubjectDashboard.tsx";
 import StudentSubjectView from "./pages/StudentSubjectView.tsx";
+import CompleteProfilePage from "./pages/CompleteProfilePage.tsx";
 
 const queryClient = new QueryClient();
 
@@ -59,7 +60,18 @@ const TeacherRoute = ({ children }: { children: React.ReactNode }) => {
 const PublicRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading, profile } = useAuth();
   if (loading) return <LoadingScreen />;
+  if (user && !profile) return <Navigate to="/complete-profile" replace />;
   if (user && profile?.approval_status === "approved") return <Navigate to="/" replace />;
+  return <>{children}</>;
+};
+
+const ProfileGate = ({ children }: { children: React.ReactNode }) => {
+  const { user, profile, loading } = useAuth();
+  const location = useLocation();
+  if (loading) return <LoadingScreen />;
+  if (user && !profile && location.pathname !== "/complete-profile") {
+    return <Navigate to="/complete-profile" replace />;
+  }
   return <>{children}</>;
 };
 
@@ -70,6 +82,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <ProfileGate>
           <InstallPWA />
           <Routes>
             <Route path="/" element={<Index />} />
@@ -77,6 +90,7 @@ const App = () => (
 
             <Route path="/login" element={<PublicRoute><LoginPage /></PublicRoute>} />
             <Route path="/signup" element={<PublicRoute><SignupPage /></PublicRoute>} />
+            <Route path="/complete-profile" element={<CompleteProfilePage />} />
             <Route path="/signup/student" element={<Navigate to="/signup?type=student" replace />} />
             <Route path="/signup/teacher" element={<Navigate to="/signup?type=teacher" replace />} />
 
@@ -93,6 +107,7 @@ const App = () => (
             <Route path="/learn/:ssId" element={<ProtectedRoute><StudentSubjectView /></ProtectedRoute>} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </ProfileGate>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
