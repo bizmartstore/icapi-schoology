@@ -1,5 +1,5 @@
-const CACHE_NAME = "icapi-lms-v1";
-const PRECACHE = ["/", "/index.html", "/icon.svg", "/manifest.webmanifest"];
+const CACHE_NAME = "icapi-lms-v2";
+const PRECACHE = ["/", "/index.html", "/icapi-logo.png", "/og-banner.png", "/manifest.webmanifest"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

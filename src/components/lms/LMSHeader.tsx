@@ -1,4 +1,4 @@
-import { Search, MessageSquare, LogIn, BookMarked } from "lucide-react";
+import { Search, MessageSquare, LogIn } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -14,12 +14,14 @@ const LMSHeader = () => {
     <header className="sticky top-0 z-50 sacred-gradient px-4 pt-3 pb-2.5 shadow-md border-b border-accent/30">
       <div className="flex items-center gap-2.5 mb-2.5">
         <div className="flex items-center gap-1.5">
-          <div className="h-7 w-7 rounded-lg bg-accent/20 border border-accent/40 flex items-center justify-center">
-            <BookMarked className="h-4 w-4 text-accent" />
-          </div>
+          <img
+            src="/icapi-logo.png"
+            alt="iCAPI LMS"
+            className="h-8 w-8 rounded-lg object-cover shrink-0"
+          />
           <div className="leading-none">
-            <span className="block font-serif-display text-[17px] font-bold text-primary-foreground tracking-tight">ICAPI</span>
-            <span className="block text-[8px] font-bold uppercase tracking-[0.2em] text-accent">ICAPI LMS</span>
+            <span className="block font-serif-display text-[17px] font-bold text-primary-foreground tracking-tight">iCAPI</span>
+            <span className="block text-[8px] font-bold uppercase tracking-[0.2em] text-accent">LMS</span>
           </div>
         </div>
         <div className="flex-1" />

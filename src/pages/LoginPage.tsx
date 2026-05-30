@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { LogIn, GraduationCap } from "lucide-react";
+import { LogIn } from "lucide-react";
 
 const LoginPage = () => {
   const navigate = useNavigate();
@@ -73,10 +73,12 @@ const LoginPage = () => {
     <div className="min-h-screen bg-background flex items-center justify-center p-4">
       <div className="w-full max-w-md space-y-6">
         <div className="text-center">
-          <div className="h-16 w-16 rounded-2xl bg-primary flex items-center justify-center mx-auto mb-4">
-            <GraduationCap className="h-8 w-8 text-primary-foreground" />
-          </div>
-          <h1 className="text-2xl font-bold text-foreground">Welcome to EduLearn</h1>
+          <img
+            src="/icapi-logo.png"
+            alt="iCAPI LMS"
+            className="h-20 w-20 rounded-2xl object-cover mx-auto mb-4"
+          />
+          <h1 className="text-2xl font-bold text-foreground">Welcome to iCAPI LMS</h1>
           <p className="text-sm text-muted-foreground mt-1">Sign in to your account</p>
         </div>
 

@@ -61,15 +61,17 @@ const InstallPWA = () => {
     <div className="fixed bottom-4 left-4 right-4 z-[100] max-w-md mx-auto animate-fade-in">
       <div className="bg-card rounded-2xl p-4 card-shadow border border-primary/20 shadow-lg">
         <div className="flex items-start gap-3">
-          <div className="h-10 w-10 rounded-xl sacred-gradient flex items-center justify-center shrink-0">
-            <Download className="h-5 w-5 text-primary-foreground" />
-          </div>
+          <img
+            src="/icapi-logo.png"
+            alt="iCAPI LMS"
+            className="h-10 w-10 rounded-xl object-cover shrink-0"
+          />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-bold text-foreground">Install ICAPILMS</p>
+            <p className="text-sm font-bold text-foreground">Install iCAPI LMS</p>
             <p className="text-xs text-muted-foreground mt-0.5">
               {isIOS
                 ? "Tap Share, then \"Add to Home Screen\" to install the app on your phone."
-                : "Add ICAPILMS to your home screen for quick access like a native app."}
+                : "Add iCAPI LMS to your home screen for quick access like a native app."}
             </p>
             <div className="flex gap-2 mt-3">
               {!isIOS && deferredPrompt && (

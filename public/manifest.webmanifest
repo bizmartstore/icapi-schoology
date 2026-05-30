@@ -1,7 +1,7 @@
 {
-  "name": "ICAPILMS",
-  "short_name": "ICAPI",
-  "description": "A modern LMS for Philippine DepEd curriculum with interactive dashboard, grades, and messaging.",
+  "name": "iCAPI LMS",
+  "short_name": "iCAPI",
+  "description": "iCAPI LMS is an all-in-one learning management system designed to empower students and educators.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
@@ -10,16 +10,22 @@
   "theme_color": "#1a2744",
   "icons": [
     {
-      "src": "/icon.svg",
-      "sizes": "any",
-      "type": "image/svg+xml",
+      "src": "/icapi-logo.png",
+      "sizes": "512x512",
+      "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "/icon.svg",
+      "src": "/icapi-logo.png",
       "sizes": "512x512",
-      "type": "image/svg+xml",
+      "type": "image/png",
       "purpose": "maskable"
+    },
+    {
+      "src": "/icapi-logo.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
     }
   ]
 }
