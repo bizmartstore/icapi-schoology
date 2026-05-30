@@ -10,6 +10,9 @@ type Banner = {
   sort_order: number | null;
 };
 
+const hasBannerText = (banner: Banner) =>
+  Boolean(banner.title?.trim() || banner.subtitle?.trim());
+
 const BannerCarousel = () => {
   const [banners, setBanners] = useState<Banner[]>([]);
   const [current, setCurrent] = useState(0);
@@ -64,32 +67,41 @@ const BannerCarousel = () => {
   return (
     <div className="relative">
       <div className="relative h-[140px] overflow-hidden">
-        {banners.map((banner, i) => (
-          <div
-            key={banner.id}
-            className={`absolute inset-0 transition-all duration-400 ease-out ${
-              i === current ? "opacity-100 translate-x-0" : i < current ? "opacity-0 -translate-x-full" : "opacity-0 translate-x-full"
-            }`}
-          >
-            <img
-              src={banner.image_url!}
-              alt={banner.title}
-              className="w-full h-full object-cover"
-              loading={i === 0 ? undefined : "lazy"}
-            />
-            <div className={`absolute inset-0 bg-gradient-to-t ${banner.gradient || "from-black/60 via-black/20 to-transparent"}`} />
-            <div className="absolute inset-0 flex flex-col justify-end p-4">
-              <h2 className="text-base font-extrabold text-primary-foreground drop-shadow-lg leading-tight">
-                {banner.title}
-              </h2>
-              {banner.subtitle && (
-                <p className="text-[11px] text-primary-foreground/90 drop-shadow-md mt-0.5 max-w-[75%]">
-                  {banner.subtitle}
-                </p>
+        {banners.map((banner, i) => {
+          const showTextOverlay = hasBannerText(banner);
+          return (
+            <div
+              key={banner.id}
+              className={`absolute inset-0 transition-all duration-400 ease-out ${
+                i === current ? "opacity-100 translate-x-0" : i < current ? "opacity-0 -translate-x-full" : "opacity-0 translate-x-full"
+              }`}
+            >
+              <img
+                src={banner.image_url!}
+                alt={banner.title || "Banner"}
+                className="w-full h-full object-cover"
+                loading={i === 0 ? undefined : "lazy"}
+              />
+              {showTextOverlay && (
+                <div className={`absolute inset-0 bg-gradient-to-t ${banner.gradient || "from-black/60 via-black/20 to-transparent"}`} />
+              )}
+              {showTextOverlay && (
+                <div className="absolute inset-0 flex flex-col justify-end p-4">
+                  {banner.title?.trim() && (
+                    <h2 className="text-base font-extrabold text-primary-foreground drop-shadow-lg leading-tight">
+                      {banner.title}
+                    </h2>
+                  )}
+                  {banner.subtitle?.trim() && (
+                    <p className="text-[11px] text-primary-foreground/90 drop-shadow-md mt-0.5 max-w-[75%]">
+                      {banner.subtitle}
+                    </p>
+                  )}
+                </div>
               )}
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
       {/* Dots */}
       <div className="absolute bottom-2 left-1/2 -translate-x-1/2 flex gap-1">

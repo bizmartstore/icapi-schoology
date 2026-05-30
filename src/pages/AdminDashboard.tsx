@@ -18,6 +18,25 @@ import {
 } from "lucide-react";
 import ImageUploadField from "@/components/lms/ImageUploadField";
 import { uploadBannerImage } from "@/lib/image-upload";
+import { isBootstrapAdmin, BOOTSTRAP_ADMIN_EMAIL } from "@/lib/auth-config";
+
+type AppRole = "admin" | "student" | "teacher";
+
+type UserWithRoles = {
+  id: string;
+  user_id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  contact_number: string;
+  user_type: "student" | "teacher";
+  school: string | null;
+  grade_level: string | null;
+  school_level: "elementary" | "junior_high_school" | null;
+  subject_taught: string | null;
+  approval_status: "pending" | "approved" | "rejected";
+  roles: AppRole[];
+};
 
 type AdminTab = "users" | "banners" | "subjects" | "assignments" | "sections" | "announcements" | "tasks" | "lessons";
 
@@ -73,6 +92,7 @@ const AdminDashboard = () => {
   const [assignForm, setAssignForm] = useState<{ teacher_id: string; subject_id: string }>({ teacher_id: "", subject_id: "" });
   const [bulkCopyGrade, setBulkCopyGrade] = useState("Grade 1");
   const [bulkCopying, setBulkCopying] = useState(false);
+  const [userDialog, setUserDialog] = useState<{ open: boolean; user: UserWithRoles | null }>({ open: false, user: null });
 
   useEffect(() => {
     if (!isAdmin) { navigate("/"); return; }
@@ -82,8 +102,9 @@ const AdminDashboard = () => {
 
   const fetchAll = async () => {
     setLoading(true);
-    const [u, b, s, a, t, l, ts, sec, ss] = await Promise.all([
+    const [u, ur, b, s, a, t, l, ts, sec, ss] = await Promise.all([
       supabase.from("profiles").select("*").order("created_at", { ascending: false }),
+      supabase.from("user_roles").select("user_id, role"),
       supabase.from("banners").select("*").order("sort_order"),
       supabase.from("subjects").select("*").order("sort_order"),
       supabase.from("announcements").select("*").order("created_at", { ascending: false }),
@@ -93,7 +114,18 @@ const AdminDashboard = () => {
       supabase.from("sections").select("*").order("created_at", { ascending: false }),
       supabase.from("section_subjects").select("*"),
     ]);
-    setUsers(u.data || []);
+    const rolesByUser = (ur.data || []).reduce<Record<string, AppRole[]>>((acc, row) => {
+      const uid = row.user_id as string;
+      if (!acc[uid]) acc[uid] = [];
+      acc[uid].push(row.role as AppRole);
+      return acc;
+    }, {});
+    setUsers(
+      (u.data || []).map((profile) => ({
+        ...profile,
+        roles: rolesByUser[profile.user_id] || [],
+      })),
+    );
     setBanners(b.data || []);
     setSubjects(s.data || []);
     setAnnouncements(a.data || []);
@@ -106,9 +138,29 @@ const AdminDashboard = () => {
   };
 
   const handleApproval = async (userId: string, status: "approved" | "rejected", userType: string) => {
+    const target = users.find((u) => u.user_id === userId);
+    if (target && isBootstrapAdmin(target.email)) {
+      toast.error("Cannot change approval for the default admin");
+      return;
+    }
     const { error } = await supabase.from("profiles").update({ approval_status: status, approved_by: user?.id }).eq("user_id", userId);
     if (error) { toast.error("Failed"); return; }
     toast.success(`${userType} ${status}`);
+    fetchAll();
+  };
+
+  const handleDeleteUser = async (target: UserWithRoles) => {
+    if (isBootstrapAdmin(target.email)) {
+      toast.error("Cannot delete the default admin account");
+      return;
+    }
+    if (!window.confirm(`Remove ${target.first_name} ${target.last_name}? This cannot be undone.`)) return;
+    const { error } = await supabase.rpc("admin_delete_user", { _target_user_id: target.user_id });
+    if (error) {
+      toast.error(error.message);
+      return;
+    }
+    toast.success("User removed");
     fetchAll();
   };
 
@@ -261,31 +313,59 @@ const AdminDashboard = () => {
             {tab === "users" && (
               <div className="space-y-3">
                 <h3 className="text-sm font-bold text-foreground">All Users ({users.length})</h3>
-                {users.map((u) => (
-                  <div key={u.id} className="bg-card rounded-2xl p-4 card-shadow">
-                    <div className="flex items-start justify-between mb-1">
-                      <div>
-                        <h3 className="text-sm font-bold text-foreground">{u.last_name}, {u.first_name}</h3>
-                        <p className="text-[11px] text-muted-foreground">{u.email} • {u.user_type}</p>
-                        {u.subject_taught && <p className="text-[11px] text-muted-foreground">Subject: {u.subject_taught}</p>}
-                        {u.school && <p className="text-[11px] text-muted-foreground">School: {u.school} | {u.grade_level}</p>}
+                {users.map((u) => {
+                  const isProtected = isBootstrapAdmin(u.email);
+                  return (
+                    <div key={u.id} className="bg-card rounded-2xl p-4 card-shadow">
+                      <div className="flex items-start justify-between mb-1 gap-2">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="text-sm font-bold text-foreground">{u.last_name}, {u.first_name}</h3>
+                          <p className="text-[11px] text-muted-foreground truncate">{u.email} • {u.user_type}</p>
+                          {u.roles.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1.5">
+                              {u.roles.map((r) => (
+                                <Badge key={r} variant={r === "admin" ? "default" : "outline"} className="text-[8px] capitalize">
+                                  {r === "admin" && <Shield className="h-2.5 w-2.5 mr-0.5" />}
+                                  {r}
+                                </Badge>
+                              ))}
+                            </div>
+                          )}
+                          {u.subject_taught && <p className="text-[11px] text-muted-foreground mt-1">Subject: {u.subject_taught}</p>}
+                          {u.school && <p className="text-[11px] text-muted-foreground">School: {u.school} | {u.grade_level}</p>}
+                          {isProtected && (
+                            <p className="text-[10px] text-primary font-semibold mt-1">Default admin — protected</p>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1.5 flex-shrink-0">
+                          <Badge variant={u.approval_status === "approved" ? "default" : u.approval_status === "rejected" ? "destructive" : "secondary"} className="text-[9px] capitalize">
+                            {u.approval_status}
+                          </Badge>
+                          {!isProtected && (
+                            <div className="flex gap-1">
+                              <Button size="icon" variant="ghost" className="h-7 w-7" onClick={() => setUserDialog({ open: true, user: u as UserWithRoles })}>
+                                <Pencil className="h-3 w-3" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={() => handleDeleteUser(u as UserWithRoles)}>
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <Badge variant={u.approval_status === "approved" ? "default" : u.approval_status === "rejected" ? "destructive" : "secondary"} className="text-[9px] capitalize">
-                        {u.approval_status}
-                      </Badge>
+                      {u.approval_status === "pending" && !isProtected && (
+                        <div className="flex gap-2 mt-2">
+                          <Button size="sm" className="rounded-xl text-[11px] h-7" onClick={() => handleApproval(u.user_id, "approved", u.user_type)}>
+                            <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
+                          </Button>
+                          <Button size="sm" variant="destructive" className="rounded-xl text-[11px] h-7" onClick={() => handleApproval(u.user_id, "rejected", u.user_type)}>
+                            <XCircle className="h-3 w-3 mr-1" /> Reject
+                          </Button>
+                        </div>
+                      )}
                     </div>
-                    {u.approval_status === "pending" && (
-                      <div className="flex gap-2 mt-2">
-                        <Button size="sm" className="rounded-xl text-[11px] h-7" onClick={() => handleApproval(u.user_id, "approved", u.user_type)}>
-                          <CheckCircle2 className="h-3 w-3 mr-1" /> Approve
-                        </Button>
-                        <Button size="sm" variant="destructive" className="rounded-xl text-[11px] h-7" onClick={() => handleApproval(u.user_id, "rejected", u.user_type)}>
-                          <XCircle className="h-3 w-3 mr-1" /> Reject
-                        </Button>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
 
@@ -642,6 +722,12 @@ const AdminDashboard = () => {
       {/* Edit/Create Dialog */}
       <EditDialog dialog={editDialog} onClose={() => setEditDialog({ ...editDialog, open: false })} onSaved={fetchAll} />
 
+      <UserEditDialog
+        dialog={userDialog}
+        onClose={() => setUserDialog({ open: false, user: null })}
+        onSaved={fetchAll}
+      />
+
       {/* Assignment Dialog */}
       <Dialog open={assignDialog} onOpenChange={setAssignDialog}>
         <DialogContent className="max-w-md rounded-2xl">
@@ -977,6 +1063,163 @@ const EditDialog = ({ dialog, onClose, onSaved }: { dialog: { open: boolean; typ
             disabled={saving || uploading || (dialog.type === "banners" && !form.image_url?.trim())}
           >
             <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : isEdit ? "Update" : "Create"}
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+};
+
+// ============ USER EDIT DIALOG ============
+const ALL_ROLES: AppRole[] = ["admin", "student", "teacher"];
+
+const UserEditDialog = ({
+  dialog,
+  onClose,
+  onSaved,
+}: {
+  dialog: { open: boolean; user: UserWithRoles | null };
+  onClose: () => void;
+  onSaved: () => void;
+}) => {
+  const { user: currentUser } = useAuth();
+  const [form, setForm] = useState<Record<string, any>>({});
+  const [roles, setRoles] = useState<AppRole[]>([]);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (dialog.open && dialog.user) {
+      setForm({ ...dialog.user });
+      setRoles([...dialog.user.roles]);
+    }
+  }, [dialog.open, dialog.user]);
+
+  const set = (key: string, val: any) => setForm((p) => ({ ...p, [key]: val }));
+
+  const toggleRole = (role: AppRole) => {
+    setRoles((prev) => (prev.includes(role) ? prev.filter((r) => r !== role) : [...prev, role]));
+  };
+
+  const handleSave = async () => {
+    if (!dialog.user || isBootstrapAdmin(dialog.user.email)) return;
+
+    setSaving(true);
+    const { id, user_id, roles: _oldRoles, created_at, updated_at, approved_by, ...profileData } = form;
+
+    const { error: profileError } = await supabase
+      .from("profiles")
+      .update({
+        first_name: profileData.first_name,
+        last_name: profileData.last_name,
+        email: profileData.email,
+        contact_number: profileData.contact_number,
+        user_type: profileData.user_type,
+        school: profileData.school || null,
+        grade_level: profileData.grade_level || null,
+        school_level: profileData.school_level || null,
+        subject_taught: profileData.subject_taught || null,
+        approval_status: profileData.approval_status,
+        approved_by: profileData.approval_status === "approved" ? currentUser?.id : null,
+      })
+      .eq("user_id", user_id);
+
+    if (profileError) {
+      setSaving(false);
+      toast.error(profileError.message);
+      return;
+    }
+
+    const previousRoles = dialog.user.roles;
+    for (const role of ALL_ROLES) {
+      const had = previousRoles.includes(role);
+      const wants = roles.includes(role);
+      if (had === wants) continue;
+      const { error: roleError } = await supabase.rpc("admin_set_user_role", {
+        _target_user_id: user_id,
+        _role: role,
+        _grant: wants,
+      });
+      if (roleError) {
+        setSaving(false);
+        toast.error(roleError.message);
+        return;
+      }
+    }
+
+    setSaving(false);
+    toast.success("User updated");
+    onClose();
+    onSaved();
+  };
+
+  if (!dialog.user) return null;
+
+  return (
+    <Dialog open={dialog.open} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-w-md rounded-2xl max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="text-base">Edit User</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <Field label="First Name" value={form.first_name} onChange={(v) => set("first_name", v)} />
+          <Field label="Last Name" value={form.last_name} onChange={(v) => set("last_name", v)} />
+          <Field label="Email" value={form.email} onChange={(v) => set("email", v)} />
+          <Field label="Contact Number" value={form.contact_number} onChange={(v) => set("contact_number", v)} />
+          <div className="space-y-1.5">
+            <Label className="text-xs">User Type</Label>
+            <Select value={form.user_type} onValueChange={(v) => set("user_type", v)}>
+              <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="student">Student</SelectItem>
+                <SelectItem value="teacher">Teacher</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Approval Status</Label>
+            <Select value={form.approval_status} onValueChange={(v) => set("approval_status", v)}>
+              <SelectTrigger className="rounded-xl h-9 text-sm"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="pending">Pending</SelectItem>
+                <SelectItem value="approved">Approved</SelectItem>
+                <SelectItem value="rejected">Rejected</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Field label="School" value={form.school || ""} onChange={(v) => set("school", v)} />
+          <Field label="Grade Level" value={form.grade_level || ""} onChange={(v) => set("grade_level", v)} />
+          <Field label="Subject Taught" value={form.subject_taught || ""} onChange={(v) => set("subject_taught", v)} />
+
+          <div className="space-y-2">
+            <Label className="text-xs">Roles</Label>
+            <p className="text-[10px] text-muted-foreground">
+              Grant <span className="font-bold">Admin</span> to let this user manage the dashboard like you.
+            </p>
+            <div className="flex flex-wrap gap-2">
+              {ALL_ROLES.map((role) => (
+                <button
+                  key={role}
+                  type="button"
+                  onClick={() => toggleRole(role)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all capitalize ${
+                    roles.includes(role)
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-muted/30 text-muted-foreground border-border"
+                  }`}
+                >
+                  {role === "admin" && <Shield className="h-3 w-3 inline mr-1 -mt-0.5" />}
+                  {role}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <p className="text-[10px] text-muted-foreground bg-muted/30 rounded-lg p-2">
+            The default admin ({BOOTSTRAP_ADMIN_EMAIL}) cannot be edited or removed.
+          </p>
+
+          <Button className="w-full rounded-xl" onClick={handleSave} disabled={saving}>
+            <Save className="h-4 w-4 mr-1" /> {saving ? "Saving..." : "Save Changes"}
           </Button>
         </div>
       </DialogContent>

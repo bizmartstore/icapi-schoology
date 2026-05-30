@@ -927,6 +927,11 @@ export type Database = {
         Returns: Database["public"]["Enums"]["approval_status"]
       }
       grant_admin_role: { Args: { _user_id: string }; Returns: boolean }
+      admin_set_user_role: {
+        Args: { _target_user_id: string; _role: Database["public"]["Enums"]["app_role"]; _grant: boolean }
+        Returns: boolean
+      }
+      admin_delete_user: { Args: { _target_user_id: string }; Returns: boolean }
       create_user_profile: {
         Args: {
           _first_name: string
