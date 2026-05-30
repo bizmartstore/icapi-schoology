@@ -64,7 +64,7 @@ const InstallPWA = () => {
           <img
             src="/icapi-logo.png"
             alt="iCAPI LMS"
-            className="h-10 w-10 rounded-xl object-cover shrink-0"
+            className="h-10 w-10 object-contain shrink-0"
           />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-foreground">Install iCAPI LMS</p>
